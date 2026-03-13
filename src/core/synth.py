@@ -45,7 +45,7 @@ from typing import Callable, Sequence
 import numpy as np
 import pandas as pd
 
-from dgp import DGP
+from core.dgp import DGP
 
 
 # ─────────────────────────────────────────────────────────────────────────────
