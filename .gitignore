@@ -1,6 +1,7 @@
 .venv
 .conda
 
+resources/results/*
 resources/plots/*
 resources/data/*
 !resources/data/.gitkeep

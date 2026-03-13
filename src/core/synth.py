@@ -251,6 +251,7 @@ def summary(df: pd.DataFrame) -> pd.DataFrame:
         value_std="std",
         value_skew=lambda x: x.skew(),
         value_kurt=lambda x: x.kurt(),
+        value_sr=lambda x: x.mean() / x.std()
     )
 
     return pd.concat([lengths, stats], axis=1).round(4)

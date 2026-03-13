@@ -368,3 +368,58 @@ class WithOutliers(DGP):
 
     def _repr_params(self):
         return f"{self.base!r}, fraction={self.fraction}, scale={self.scale}"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Constant-mean GARCH  (arch 'Constant' mean equation)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ConstMeanGARCHProcess(DGP):
+    """
+    GARCH(p, q) with a constant mean:  y_t = μ + ε_t,  ε_t ~ GARCH.
+
+    Calibration for unit unconditional variance and target SR θ₀:
+        ω = 1 − Σα − Σβ,   μ = θ₀
+
+    Parameters
+    ----------
+    mu : float           constant mean (= target SR when σ_uncond = 1)
+    omega, alpha, beta : GARCH(1,1) parameters
+    p, q : int           GARCH orders
+    dist : str           'normal', 't', 'skewt', 'ged'
+    dist_params : dict   e.g. {"nu": 8} for Student-t
+    """
+
+    label = "ConstMean-GARCH"
+
+    def __init__(
+        self,
+        mu:    float = 0.0,
+        p:     int   = 1,
+        q:     int   = 1,
+        omega: float = 0.05,
+        alpha: float | list = 0.10,
+        beta:  float | list = 0.85,
+        dist:  str = "normal",
+        dist_params: dict | None = None,
+    ):
+        self.mu, self.p, self.q, self.dist = mu, p, q, dist
+        alpha_ = [alpha] if np.isscalar(alpha) else list(alpha)
+        beta_  = [beta]  if np.isscalar(beta)  else list(beta)
+        self._params = [mu, omega] + alpha_ + beta_
+        dp = dist_params or {}
+        if dist == "t":
+            self._params += [dp.get("nu", 8.0)]
+        elif dist == "skewt":
+            self._params += [dp.get("nu", 8.0), dp.get("lam", 0.0)]
+        elif dist == "ged":
+            self._params += [dp.get("nu", 1.5)]
+
+    def simulate(self, n, rng):
+        am  = arch_model(y=None, mean="Constant", vol="GARCH",
+                         p=self.p, q=self.q, dist=self.dist)
+        sim = am.simulate(params=self._params, nobs=n, burn=500)
+        return sim["data"].values
+
+    def _repr_params(self):
+        return f"mu={self.mu}, p={self.p}, q={self.q}, params={self._params}, dist={self.dist!r}"
