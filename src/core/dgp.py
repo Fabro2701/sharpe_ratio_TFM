@@ -34,6 +34,10 @@ class DGP(abc.ABC):
     def simulate(self, n: int, rng: np.random.Generator) -> np.ndarray:
         """Return a 1-D array of length *n*."""
 
+    @abc.abstractmethod
+    def calibrate_params(self, mu: float, sigma: float):
+        """Mutate internal parameters so that E[X] = mu, Std[X] = sigma."""
+
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._repr_params()})"
 
@@ -51,6 +55,10 @@ class InnovDist(abc.ABC):
     @abc.abstractmethod
     def __call__(self, size: int, rng: np.random.Generator) -> np.ndarray: ...
 
+    @abc.abstractmethod
+    def calibrate_params(self, mu: float, sigma: float) -> "InnovDist":
+        """Mutate internal parameters so that E[X] = mu, Std[X] = sigma."""
+
     def __repr__(self) -> str:
         return self.__class__.__name__
 
@@ -62,21 +70,41 @@ class NormalInnov(InnovDist):
 
     def __call__(self, size, rng):
         return rng.normal(self.mean, self.std, size=size)
+    
+    def calibrate_params(self, mu: float, sigma: float) -> "NormalInnov":
+        self.mean = mu
+        self.std  = sigma
+        return self
 
     def __repr__(self):
         return f"Normal(μ={self.mean}, σ={self.std})"
 
 
 class StudentTInnov(InnovDist):
-    def __init__(self, df: float = 5.0, scale: float = 1.0):
-        self.df    = df
-        self.scale = scale
+    """
+    Innovation: mean + scale * t_df
+
+    df   — shape (tail heaviness), fixed by the user; must be > 2 for calibration
+    mean — location, calibrated to mu
+    scale — calibrated so Std[X] = sigma  (any positive sigma is valid)
+
+    Default (uncalibrated): mean=0, scale = sqrt((df-2)/df)  → unit variance
+    """
+    def __init__(self, df: float = 5.0, mean: float = 0.0):
+        self.df   = df
+        self.mean = mean
+        self.scale = np.sqrt((df - 2) / df)
 
     def __call__(self, size, rng):
-        return rng.standard_t(self.df, size=size) * self.scale
+        return self.mean + rng.standard_t(self.df, size=size) * self.scale
+
+    def calibrate_params(self, mu: float, sigma: float) -> "StudentTInnov":
+        self.mean  = mu
+        self.scale = sigma * np.sqrt((self.df - 2) / self.df)  # any sigma > 0 works
+        return self
 
     def __repr__(self):
-        return f"StudentT(df={self.df}, scale={self.scale})"
+        return f"StudentT(μ={self.mean}, df={self.df}, scale={self.scale:.4f})"
 
 
 class UniformInnov(InnovDist):
@@ -143,6 +171,10 @@ class IIDProcess(DGP):
 
     def simulate(self, n, rng):
         return self.innov(n, rng)
+
+    def calibrate_params(self, mu: float, sigma: float) -> "IIDProcess":
+        self.innov.calibrate_params(mu, sigma)
+        return self
 
     def _repr_params(self):
         return repr(self.innov)

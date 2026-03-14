@@ -73,7 +73,7 @@ def run_pair(dgp, model, true_sr, T, n_sim, alpha, rng):
     for i in range(n_sim):
         x    = dgp.simulate(T, rng)
         sr_h = _sr_hat(x)
-        nuis = estimate_nuisance(x, model)
+        nuis = estimate_nuisance(x, model) # TODO each model should have its own estimate params method
         V    = float(model(sr_h, **nuis))
         if not (np.isfinite(V) and V > 0):
             V = float(model(sr_h))
