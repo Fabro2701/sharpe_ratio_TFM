@@ -114,6 +114,10 @@ class UniformInnov(InnovDist):
 
     def __call__(self, size, rng):
         return rng.uniform(self.low, self.high, size=size)
+    
+    
+    def calibrate_params(self, mu: float, sigma: float):
+        raise NotImplementedError(self.__class__)
 
     def __repr__(self):
         return f"Uniform({self.low}, {self.high})"
@@ -126,6 +130,10 @@ class ChiSquareInnov(InnovDist):
 
     def __call__(self, size, rng):
         return rng.chisquare(self.df, size=size) - self.df
+    
+    
+    def calibrate_params(self, mu: float, sigma: float):
+        raise NotImplementedError(self.__class__)
 
     def __repr__(self):
         return f"ChiSq(df={self.df})"
@@ -146,6 +154,10 @@ class GaussianMixtureInnov(InnovDist):
     def __call__(self, size, rng):
         k          = rng.choice(len(self.means), size=size, p=self.weights)
         return np.array([rng.normal(self.means[i], self.stds[i]) for i in k])
+    
+    
+    def calibrate_params(self, mu: float, sigma: float):
+        raise NotImplementedError(self.__class__)
 
     def __repr__(self):
         return f"GaussianMixture(means={self.means.tolist()}, stds={self.stds.tolist()})"
@@ -314,6 +326,9 @@ class GARCHProcess(DGP):
         sim = am.simulate(params=self._params, nobs=n, burn=500)
         return sim["data"].values
 
+    def calibrate_params(self, mu: float, sigma: float):
+        raise NotImplementedError(self.__class__)
+
     def _repr_params(self):
         return f"p={self.p}, q={self.q}, params={self._params}, dist={self.dist!r}"
 
@@ -370,6 +385,9 @@ class ARGARCHProcess(DGP):
                          vol="GARCH", p=self.p_vol, q=self.q_vol, dist=self.dist)
         sim = am.simulate(params=self._params, nobs=n, burn=500)
         return sim["data"].values
+    
+    def calibrate_params(self, mu: float, sigma: float):
+        raise NotImplementedError(self.__class__)
 
     def _repr_params(self):
         return (f"ar_lags={self.ar_lags}, p_vol={self.p_vol}, "
@@ -407,6 +425,10 @@ class WithOutliers(DGP):
         idx  = rng.choice(n, size=k, replace=False)
         data[idx] += rng.normal(0, self.scale * std, size=k)
         return data
+    
+    
+    def calibrate_params(self, mu: float, sigma: float):
+        raise NotImplementedError(self.__class__)
 
     def _repr_params(self):
         return f"{self.base!r}, fraction={self.fraction}, scale={self.scale}"
@@ -462,6 +484,10 @@ class ConstMeanGARCHProcess(DGP):
                          p=self.p, q=self.q, dist=self.dist)
         sim = am.simulate(params=self._params, nobs=n, burn=500)
         return sim["data"].values
+    
+    
+    def calibrate_params(self, mu: float, sigma: float):
+        raise NotImplementedError(self.__class__)
 
     def _repr_params(self):
         return f"mu={self.mu}, p={self.p}, q={self.q}, params={self._params}, dist={self.dist!r}"

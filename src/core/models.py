@@ -40,6 +40,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 import numpy as np
+from scipy import stats
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -225,6 +226,10 @@ class AvarModel(abc.ABC):
             if k in self.parameters:
                 self.parameters[k].check(v)
 
+    @abc.abstractmethod
+    def fit(self, x):
+        """"""
+
     def sensitivity(
         self,
         param: str,
@@ -355,6 +360,9 @@ class IIDNormalModel(AvarModel):
 
     def _avar(self, sr, **kw):
         return 1.0 + sr**2 / 2.0
+    
+    def fit(self, x):
+        return {}
 
 
 class IIDNonNormalModel(AvarModel):
@@ -406,6 +414,11 @@ class IIDNonNormalModel(AvarModel):
 
     def _avar(self, sr, skew=0.0, exc_kurt=0.0, **kw):
         return 1.0 + sr**2 / 2.0 - sr * skew + sr**2 * exc_kurt / 4.0
+    
+    def fit(self, x):
+        return {'skew':float(stats.skew(x)),
+                'exc_kurt':float(stats.kurtosis(x, fisher=True)) #fisher: -3
+                }
 
 
 class AR1NormalModel(AvarModel):
@@ -455,7 +468,13 @@ class AR1NormalModel(AvarModel):
         # clip to avoid division by zero (only relevant if caller bypasses validate)
         rho = np.clip(rho, -1 + 1e-9, 1 - 1e-9)
         return (1.0 + rho) / (1.0 - rho) + sr**2 / (2.0 * (1.0 - rho**2))
-
+    
+    def fit(self, x):
+        lag = x[:-1]; y = x[1:]
+        dm  = lag - lag.mean()
+        den = float(np.dot(dm, dm))
+        rho = 0.0 if den < 1e-12 else float(np.clip(np.dot(dm, y - y.mean()) / den, -0.999, 0.999))
+        return {'rho':rho}
 
 class IIDStudentTModel(AvarModel):
     """
@@ -498,10 +517,14 @@ class IIDStudentTModel(AvarModel):
     }
     plot_style    = {"color": "#FB8C00", "ls": ":", "lw": 2.2}
 
-    def _avar(self, sr, nu=10.0, **kw):
+    def _avar(self, sr, nu=10.0, **kw):#TODO check it assumes scale=1?
         nu = np.asarray(nu, dtype=float)
         exc_kurt = np.where(nu > 4, 6.0 / (nu - 4.0), np.nan)
         return 1.0 + sr**2 / 2.0 + sr**2 * exc_kurt / 4.0
+    
+    def fit(self, x):
+        nu, mu, sigma = stats.t.fit(x, floc=float(x.mean()))
+        return {"nu":nu} 
 
 
 class AR1NonNormalModel(AvarModel):
@@ -586,6 +609,9 @@ class AR1NonNormalModel(AvarModel):
         skew_c = -sr * skew   / (1.0 - rho)**2
         kurt_c =  sr**2 * exc_kurt / (4.0 * (1.0 - rho**2))
         return base + var_c + skew_c + kurt_c
+    
+    def fit(self, x):
+        raise NotImplementedError()
 
 
 # ─────────────────────────────────────────────────────────────────────────────

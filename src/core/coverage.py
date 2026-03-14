@@ -4,61 +4,16 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 from scipy import stats
-from dgp import DGP
-from models import AvarModel, REGISTRY
+from core.dgp import DGP
+from core.models import AvarModel, REGISTRY
+from utils.calibration_sr import calibrate_dgp
 
-
-class CalibratedDGP(DGP):
-    """Shifts any DGP mean so unconditional SR == target_sr."""
-
-    def __init__(self, base, target_sr, calibration_n=100_000, calib_seed=0):
-        self.base      = base
-        self.target_sr = target_sr
-        rng        = np.random.default_rng(calib_seed)
-        large      = base.simulate(calibration_n, rng)
-        self._mu    = float(large.mean())
-        self._sigma = float(large.std())
-        self._drift = target_sr * self._sigma - self._mu
-
-    @property
-    def sigma(self): return self._sigma
-
-    def simulate(self, n, rng):
-        return self.base.simulate(n, rng) + self._drift
-
-    def _repr_params(self):
-        return f"{self.base!r}, target_sr={self.target_sr}"
 
 
 @dataclass
 class DGPSpec:
     dgp:            DGP
     name:           str
-    pre_calibrated: bool = False
-
-
-def _est_skew(x):     return float(stats.skew(x))
-def _est_exc_kurt(x): return float(stats.kurtosis(x, fisher=True))
-
-def _est_rho(x):
-    lag = x[:-1]; y = x[1:]
-    dm  = lag - lag.mean()
-    den = float(np.dot(dm, dm))
-    return 0.0 if den < 1e-12 else float(np.clip(np.dot(dm, y - y.mean()) / den, -0.999, 0.999))
-
-def _est_nu(x, lo=4.05, hi=100.0):
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        try:
-            df, _, _ = stats.t.fit(x, floc=float(x.mean()))
-            return float(np.clip(df, lo, hi))
-        except Exception:
-            return 10.0
-
-_ESTIMATORS = {"skew": _est_skew, "exc_kurt": _est_exc_kurt, "rho": _est_rho, "nu": _est_nu}
-
-def estimate_nuisance(x, model):
-    return {k: _ESTIMATORS[k](x) for k in model.parameters if k in _ESTIMATORS}
 
 
 def _sr_hat(x):
@@ -70,11 +25,12 @@ def run_pair(dgp, model, true_sr, T, n_sim, alpha, rng):
     z = float(stats.norm.ppf(1.0 - alpha / 2.0))
     sr_hats = np.empty(n_sim); ci_widths = np.empty(n_sim)
     V_hats  = np.empty(n_sim); covered   = np.zeros(n_sim, dtype=bool)
-    for i in range(n_sim):
+    for i in range(n_sim): #TODO reuse simulations?
         x    = dgp.simulate(T, rng)
         sr_h = _sr_hat(x)
-        nuis = estimate_nuisance(x, model) # TODO each model should have its own estimate params method
-        V    = float(model(sr_h, **nuis))
+        params_h = model.fit(x)
+        #nuis = estimate_nuisance(x, model) # TODO each model should have its own estimate params method
+        V    = float(model(sr_h, **params_h))
         if not (np.isfinite(V) and V > 0):
             V = float(model(sr_h))
         hw = z * np.sqrt(V / T)
@@ -93,7 +49,7 @@ def run_pair(dgp, model, true_sr, T, n_sim, alpha, rng):
 def run_coverage_study(
     dgp_specs, avar_models,
     target_sr=0.5, T=500, n_sim=2000, alpha=0.05,
-    seed=42, verbose=True, calibration_n=100_000,
+    seed=42, verbose=True
 ):
     master_rng = np.random.default_rng(seed)
     nominal    = 1.0 - alpha
@@ -101,14 +57,10 @@ def run_coverage_study(
 
     calibrated = []
     for spec in dgp_specs:
-        if spec.pre_calibrated:
-            calibrated.append((spec.name, spec.dgp, target_sr))
-            if verbose: print(f"  [pre-calib]   {spec.name}")
-        else:
-            if verbose: print(f"  Calibrating   {spec.name} ...", end=" ", flush=True)
-            cdgp = CalibratedDGP(spec.dgp, target_sr, calibration_n)
-            calibrated.append((spec.name, cdgp, target_sr))
-            if verbose: print(f"sigma={cdgp.sigma:.4f}  drift={cdgp._drift:+.6f}")
+        print("before: ", spec.dgp)
+        calibrate_dgp(spec.dgp, target_sr, 0.15)
+        print("after: ", spec.dgp)
+        calibrated.append((spec.name, spec.dgp, target_sr))
 
     total = len(calibrated) * len(avar_models)
     done  = 0
@@ -123,7 +75,7 @@ def run_coverage_study(
                 print(f"  [{done:{w}}/{total}]  DGP={dgp_name:<28}  Model={model.name:<22} ...", end=" ", flush=True)
             res = run_pair(cdgp, model, true_sr, T, n_sim, alpha, pair_rng)
             if verbose:
-                flag = "OK" if abs(res["coverage"] - nominal) < 0.03 else "!!"
+                flag = "OK" if abs(res["coverage"] - nominal) < 0.01 else "!!"
                 print(f"cov={res['coverage']:.3f} [{flag}]")
             rows.append({"dgp_name": dgp_name, "avar_model": model.name, "nominal_coverage": nominal, **res})
 

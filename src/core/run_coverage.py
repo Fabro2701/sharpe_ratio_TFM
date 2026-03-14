@@ -22,12 +22,12 @@ import argparse
 import sys
 import os
 
-from dgp import (
+from core.dgp import (
     IIDProcess, ARProcess, ConstMeanGARCHProcess, ARGARCHProcess,
     NormalInnov, StudentTInnov, GaussianMixtureInnov,
 )
-from models import REGISTRY
-from coverage import DGPSpec, run_coverage_study, coverage_report
+from core.models import REGISTRY
+from core.coverage import DGPSpec, run_coverage_study, coverage_report
 from config import RESULTS_DIR
 
 
@@ -182,7 +182,6 @@ def main(cli_args=None):
         alpha         = args.alpha,
         seed          = args.seed,
         verbose       = not args.quiet,
-        calibration_n = args.calibration_n,
     )
 
     print("\n" + coverage_report(results, alpha=args.alpha, tol=args.tol))

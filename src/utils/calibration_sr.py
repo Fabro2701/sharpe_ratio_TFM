@@ -1,4 +1,6 @@
 from typing import Tuple, Optional
+from core.dgp import DGP
+
 
 def get_target_moments(
     sr_objective: float, 
@@ -50,3 +52,8 @@ def get_target_moments(
             raise ValueError("The provided 'mu' and 'sr_objective' imply a negative sigma, which is invalid.")
             
         return float(mu), computed_sigma
+    
+
+def calibrate_dgp(dgp: DGP, sr_objective, mu = None, sigma = None):
+    mu, sigma = get_target_moments(sr_objective, mu, sigma)    
+    dgp.calibrate_params(mu, sigma)
