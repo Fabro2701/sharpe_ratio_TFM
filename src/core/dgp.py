@@ -242,6 +242,16 @@ class ARProcess(DGP):
             return noise[:k] if k <= len(noise) else self.innov(k, rng)
 
         return proc.generate_sample(nsample=n, distrvs=_distrvs) + self.drift
+    
+    def calibrate_params(self, mu: float, sigma: float) -> "ARProcess":
+        if self.order>1:
+            raise ValueError("order>1 not implemented")
+        
+        phi_sum_sq = float(np.dot(self.phi, self.phi))
+        sigma_innov = sigma * np.sqrt(1.0 - phi_sum_sq)
+        self.drift = mu
+        self.innov.calibrate_params(0.0, sigma_innov)
+        return self
 
     def _repr_params(self):
         phi_str = "random" if self.phi is None else self.phi.tolist()
