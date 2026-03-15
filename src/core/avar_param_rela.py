@@ -1,13 +1,12 @@
 """
 avar_sharpe.py
 ==============
-Plotting layer for Avar(√T · SR̂).  Consumes model classes from models.py.
+Plotting layer for Avar(√T · SR̂).  Consumes ModelMeta wrappers from model_meta.py.
 
 Usage
 -----
     python avar_sharpe.py                          # built-in demo
     from avar_sharpe import plot_avar_sharpe
-    from models import REGISTRY, get_model
 
     fig = plot_avar_sharpe()                       # all registered models
     fig = plot_avar_sharpe(models=["iid_normal", "ar1_normal"])
@@ -18,7 +17,8 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from matplotlib.lines import Line2D
 
-from models import REGISTRY, AvarModel, get_model
+# All display/plotting helpers live here; models.py is not imported directly.
+from core.model_meta import REGISTRY, ModelMeta, get_model
 
 
 def _style_axis(ax):
@@ -38,9 +38,7 @@ def _autoscale_y(ax, pad=0.10):
     all_y = all_y[np.isfinite(all_y)]
     if all_y.size == 0:
         return
-    ymin = max(0.0, all_y.min() * (1 - pad))
-    ymax = all_y.max() * (1 + pad)
-    ax.set_ylim(ymin, ymax)
+    ax.set_ylim(max(0.0, all_y.min() * (1 - pad)), all_y.max() * (1 + pad))
 
 
 def _collect_param_panels(model_instances):
@@ -75,8 +73,8 @@ def plot_avar_sharpe(
 
     Parameters
     ----------
-    models : list of short_name strings or AvarModel instances, optional
-    baseline : dict, optional   override defaults for fixed params
+    models   : list of short_name strings or ModelMeta instances, optional
+    baseline : dict, optional — override defaults for fixed params
     ncols, figsize, title, ylim_pad, save_path, dpi : standard options
     """
     instances = (
@@ -84,16 +82,15 @@ def plot_avar_sharpe(
         else [get_model(m) if isinstance(m, str) else m for m in models]
     )
 
-    # global defaults (later models override earlier ones on conflict)
     global_defaults = {}
     for m in instances:
         global_defaults.update(m.defaults())
     if baseline:
         global_defaults.update(baseline)
 
-    panels    = _collect_param_panels(instances)
-    n_panels  = len(panels)
-    nrows     = (n_panels + ncols - 1) // ncols
+    panels   = _collect_param_panels(instances)
+    n_panels = len(panels)
+    nrows    = (n_panels + ncols - 1) // ncols
 
     fig = plt.figure(figsize=figsize, facecolor="#0F1117")
     fig.suptitle(title, fontsize=15, fontweight="bold",
@@ -158,13 +155,13 @@ def plot_avar_sharpe(
     return fig
 
 
-from config import PLOTS_DIR
-
 if __name__ == "__main__":
     import matplotlib
     matplotlib.use("Agg")
 
+    from config import PLOTS_DIR
     fig = plot_avar_sharpe(save_path=PLOTS_DIR / "avar_sharpe_plot.png")
+
     print("\nFormula summary")
     print("-" * 64)
     for m in REGISTRY.values():
