@@ -25,21 +25,21 @@ def run_pair(dgp: DGP, model, true_sr, T, n_sim, alpha, th_moments, rng):
     z = float(stats.norm.ppf(1.0 - alpha / 2.0))
     sr_hats = np.empty(n_sim); ci_widths = np.empty(n_sim)
     V_hats  = np.empty(n_sim); covered   = np.zeros(n_sim, dtype=bool)
-    for i in range(n_sim): #TODO reuse simulations?
-        x    = dgp.simulate(T, rng)
+    for i in range(n_sim): #TODO reuse simulations? to reduce MC noise
+        x = dgp.simulate(T, rng)
+        sr_h = _sr_hat(x)
         if th_moments:
-            #sr_h = true_sr not sure what to do here
-            sr_h = _sr_hat(x)
             V = float(model(sr_h, **dgp.get_theo_moments()))
         else:
-            sr_h = _sr_hat(x)
             params_h = model.fit(x)
             V = float(model(sr_h, **params_h))
         if not (np.isfinite(V) and V > 0):
-            print("Good params not found")
+            print("Warning: Non-finite or non-positive variance. Using fallback.")
             V = float(model(sr_h))
         hw = z * np.sqrt(V / T)
-        sr_hats[i] = sr_h; ci_widths[i] = 2*hw; V_hats[i] = V
+        sr_hats[i] = sr_h
+        ci_widths[i] = 2*hw
+        V_hats[i] = V
         covered[i] = bool(sr_h - hw <= true_sr <= sr_h + hw)
     return {
         "coverage":      float(covered.mean()),
