@@ -38,6 +38,12 @@ class DGP(abc.ABC):
     def calibrate_params(self, mu: float, sigma: float):
         """Mutate internal parameters so that E[X] = mu, Std[X] = sigma."""
 
+    def get_theo_moments(self):
+        return {"skew":self.th_skew,
+                "exc_kurt":self.th_exc_kurt,
+                "rho":self.th_rho,
+                "nu":self.th_nu}
+
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._repr_params()})"
 
@@ -67,6 +73,10 @@ class NormalInnov(InnovDist):
     def __init__(self, mean: float = 0.0, std: float = 1.0):
         self.mean = mean
         self.std  = std
+        self.th_skew = 0
+        self.th_exc_kurt = 0
+        self.th_rho = 0
+        self.th_nu = np.inf
 
     def __call__(self, size, rng):
         return rng.normal(self.mean, self.std, size=size)
@@ -75,6 +85,12 @@ class NormalInnov(InnovDist):
         self.mean = mu
         self.std  = sigma
         return self
+    
+    def get_theo_moments(self, mu: float, sigma: float):
+        return {"skew":0,
+                "exc_kurt":0,
+                "rho":0,
+                "nu":0}
 
     def __repr__(self):
         return f"Normal(μ={self.mean}, σ={self.std})"
@@ -94,6 +110,12 @@ class StudentTInnov(InnovDist):
         self.df   = df
         self.mean = mean
         self.scale = np.sqrt((df - 2) / df)
+        self.th_skew = 0
+        if self.df < 4:
+            print("Warning df > 4")
+        self.th_exc_kurt = 6/(self.df - 4) if self.df > 4 else np.inf
+        self.th_rho = 0
+        self.th_nu = self.df
 
     def __call__(self, size, rng):
         return self.mean + rng.standard_t(self.df, size=size) * self.scale
@@ -180,6 +202,10 @@ class IIDProcess(DGP):
 
     def __init__(self, innov: InnovDist | Callable = NormalInnov()):
         self.innov = innov
+        self.th_skew = innov.th_skew
+        self.th_exc_kurt = innov.th_exc_kurt
+        self.th_rho = 0
+        self.th_nu = innov.th_nu
 
     def simulate(self, n, rng):
         return self.innov(n, rng)
@@ -236,6 +262,12 @@ class ARProcess(DGP):
         self.phi   = None if phi is None else np.asarray(phi, dtype=float)
         self.innov = innov
         self.drift = drift
+
+        self.th_skew = innov.th_skew
+        phi_sum_sq = float(np.dot(self.phi, self.phi))
+        self.th_exc_kurt = innov.th_exc_kurt * (1-phi_sum_sq) / (1+phi_sum_sq) #TODO check
+        self.th_rho = phi
+        self.th_nu = innov.th_nu
 
     def simulate(self, n, rng):
         phi = (

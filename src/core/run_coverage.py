@@ -50,10 +50,10 @@ def make_dgp_specs() -> list[DGPSpec]:
         DGPSpec(IIDProcess(NormalInnov()),                    "iid_normal"),
         DGPSpec(IIDProcess(StudentTInnov(df=10)),             "iid_t10"),
         DGPSpec(IIDProcess(StudentTInnov(df=5)),              "iid_t5"),
-        DGPSpec(
-            IIDProcess(GaussianMixtureInnov([-2, 2], [1, 1])),
-            "iid_gmix",
-        ),
+        #DGPSpec(
+        #    IIDProcess(GaussianMixtureInnov([-2, 2], [1, 1])),
+        #    "iid_gmix",
+        #),
 
         # ── AR(1) Normal ──────────────────────────────────────────────────
         DGPSpec(ARProcess(phi=[0.2], innov=NormalInnov()),    "ar1_phi02_normal"),
@@ -64,26 +64,26 @@ def make_dgp_specs() -> list[DGPSpec]:
         DGPSpec(ARProcess(phi=[0.2], innov=StudentTInnov(df=8)),  "ar1_phi02_t8"),
         DGPSpec(ARProcess(phi=[0.4], innov=StudentTInnov(df=5)),  "ar1_phi04_t5"),
 
-        # ── GARCH(1,1) ────────────────────────────────────────────────────
-        DGPSpec(
-            ConstMeanGARCHProcess(
-                mu=0.0, omega=1-a_g-b_g, alpha=a_g, beta=b_g, dist="normal"),
-            "garch11_normal",
-        ),
-        DGPSpec(
-            ConstMeanGARCHProcess(
-                mu=0.0, omega=1-a_g-b_g, alpha=a_g, beta=b_g,
-                dist="t", dist_params={"nu": 8}),
-            "garch11_t8",
-        ),
+        # # ── GARCH(1,1) ────────────────────────────────────────────────────
+        # DGPSpec(
+        #     ConstMeanGARCHProcess(
+        #         mu=0.0, omega=1-a_g-b_g, alpha=a_g, beta=b_g, dist="normal"),
+        #     "garch11_normal",
+        # ),
+        # DGPSpec(
+        #     ConstMeanGARCHProcess(
+        #         mu=0.0, omega=1-a_g-b_g, alpha=a_g, beta=b_g,
+        #         dist="t", dist_params={"nu": 8}),
+        #     "garch11_t8",
+        # ),
 
-        # ── AR(1)-GARCH(1,1) ─────────────────────────────────────────────
-        DGPSpec(
-            ARGARCHProcess(
-                ar_lags=1, p_vol=1, q_vol=1, dist="t",
-                params=[0.0, 0.2, 1-a_g-b_g, a_g, b_g, 8.0]),
-            "ar1_garch11_t8",
-        ),
+        # # ── AR(1)-GARCH(1,1) ─────────────────────────────────────────────
+        # DGPSpec(
+        #     ARGARCHProcess(
+        #         ar_lags=1, p_vol=1, q_vol=1, dist="t",
+        #         params=[0.0, 0.2, 1-a_g-b_g, a_g, b_g, 8.0]),
+        #     "ar1_garch11_t8",
+        # ),
     ]
 
 
@@ -121,6 +121,8 @@ def parse_args(args=None):
                    help="Print available AvarModel short_names and exit")
     p.add_argument("--quiet",       action="store_true",
                    help="Suppress per-cell progress output")
+    p.add_argument("--th_moments",  action="store_true",
+                   help="Use theoretical moments")
     return p.parse_args(args)
 
 
@@ -173,6 +175,7 @@ def main(cli_args=None):
 
     out_path = args.out or RESULTS_DIR / f"coverage_T{args.T}_n{args.n_sim}.csv"
 
+    
     results = run_coverage_study(
         dgp_specs     = specs,
         avar_models   = models,
@@ -180,6 +183,7 @@ def main(cli_args=None):
         T             = args.T,
         n_sim         = args.n_sim,
         alpha         = args.alpha,
+        th_moments    = args.th_moments,
         seed          = args.seed,
         verbose       = not args.quiet,
     )
@@ -198,6 +202,7 @@ if __name__ == "__main__":
         "--theta", "0.5",
         "--dgps", "iid_normal", "iid_t5",
         "--models", "iid_normal", "iid_student_t",
+        "--th_moments",
         "--seed", "42"
     ]
 

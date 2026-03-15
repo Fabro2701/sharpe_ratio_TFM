@@ -21,17 +21,22 @@ def _sr_hat(x):
     return float(x.mean() / s) if s > 1e-12 else 0.0
 
 
-def run_pair(dgp, model, true_sr, T, n_sim, alpha, rng):
+def run_pair(dgp: DGP, model, true_sr, T, n_sim, alpha, th_moments, rng):
     z = float(stats.norm.ppf(1.0 - alpha / 2.0))
     sr_hats = np.empty(n_sim); ci_widths = np.empty(n_sim)
     V_hats  = np.empty(n_sim); covered   = np.zeros(n_sim, dtype=bool)
     for i in range(n_sim): #TODO reuse simulations?
         x    = dgp.simulate(T, rng)
-        sr_h = _sr_hat(x)
-        params_h = model.fit(x)
-        #nuis = estimate_nuisance(x, model) # TODO each model should have its own estimate params method
-        V    = float(model(sr_h, **params_h))
+        if th_moments:
+            #sr_h = true_sr not sure what to do here
+            sr_h = _sr_hat(x)
+            V = float(model(sr_h, **dgp.get_theo_moments()))
+        else:
+            sr_h = _sr_hat(x)
+            params_h = model.fit(x)
+            V = float(model(sr_h, **params_h))
         if not (np.isfinite(V) and V > 0):
+            print("Good params not found")
             V = float(model(sr_h))
         hw = z * np.sqrt(V / T)
         sr_hats[i] = sr_h; ci_widths[i] = 2*hw; V_hats[i] = V
@@ -49,6 +54,7 @@ def run_pair(dgp, model, true_sr, T, n_sim, alpha, rng):
 def run_coverage_study(
     dgp_specs, avar_models,
     target_sr=0.5, T=500, n_sim=2000, alpha=0.05,
+    th_moments = False,
     seed=42, verbose=True
 ):
     master_rng = np.random.default_rng(seed)
@@ -66,6 +72,9 @@ def run_coverage_study(
     done  = 0
     w     = len(str(total))
 
+    if th_moments:
+        print("Using theoretical moments")
+
     for dgp_name, cdgp, true_sr in calibrated:
         dgp_rng = np.random.default_rng(master_rng.integers(0, 2**31))
         for model in avar_models:
@@ -73,7 +82,7 @@ def run_coverage_study(
             done += 1
             if verbose:
                 print(f"  [{done:{w}}/{total}]  DGP={dgp_name:<28}  Model={model.name:<22} ...", end=" ", flush=True)
-            res = run_pair(cdgp, model, true_sr, T, n_sim, alpha, pair_rng)
+            res = run_pair(cdgp, model, true_sr, T, n_sim, alpha, th_moments, pair_rng)
             if verbose:
                 flag = "OK" if abs(res["coverage"] - nominal) < 0.01 else "!!"
                 print(f"cov={res['coverage']:.3f} [{flag}]")
