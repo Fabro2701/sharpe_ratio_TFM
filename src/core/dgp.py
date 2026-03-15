@@ -38,11 +38,16 @@ class DGP(abc.ABC):
     def calibrate_params(self, mu: float, sigma: float):
         """Mutate internal parameters so that E[X] = mu, Std[X] = sigma."""
 
+    def calculate_theo_moments(self):
+        raise NotImplementedError()
+
     def get_theo_moments(self):
         return {"skew":self.th_skew,
                 "exc_kurt":self.th_exc_kurt,
                 "rho":self.th_rho,
-                "nu":self.th_nu}
+                "nu":self.th_nu,
+                "mean":self.th_mean,
+                "sigma":self.th_sigma}
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._repr_params()})"
@@ -65,6 +70,17 @@ class InnovDist(abc.ABC):
     def calibrate_params(self, mu: float, sigma: float) -> "InnovDist":
         """Mutate internal parameters so that E[X] = mu, Std[X] = sigma."""
 
+    def calculate_theo_moments(self):
+        raise NotImplementedError()
+
+    def get_theo_moments(self):
+        return {"skew":self.th_skew,
+                "exc_kurt":self.th_exc_kurt,
+                "rho":self.th_rho,
+                "nu":self.th_nu,
+                "mean":self.th_mean,
+                "sigma":self.th_sigma}
+
     def __repr__(self) -> str:
         return self.__class__.__name__
 
@@ -73,24 +89,24 @@ class NormalInnov(InnovDist):
     def __init__(self, mean: float = 0.0, std: float = 1.0):
         self.mean = mean
         self.std  = std
-        self.th_skew = 0
-        self.th_exc_kurt = 0
-        self.th_rho = 0
-        self.th_nu = np.inf
-
+        self.calculate_theo_moments()
+        
     def __call__(self, size, rng):
         return rng.normal(self.mean, self.std, size=size)
     
     def calibrate_params(self, mu: float, sigma: float) -> "NormalInnov":
         self.mean = mu
         self.std  = sigma
+        self.calculate_theo_moments()
         return self
     
-    def get_theo_moments(self, mu: float, sigma: float):
-        return {"skew":0,
-                "exc_kurt":0,
-                "rho":0,
-                "nu":0}
+    def calculate_theo_moments(self):
+        self.th_skew = 0
+        self.th_exc_kurt = 0
+        self.th_rho = 0
+        self.th_nu = np.inf
+        self.th_mean = self.mean
+        self.th_sigma = self.std
 
     def __repr__(self):
         return f"Normal(μ={self.mean}, σ={self.std})"
@@ -110,12 +126,8 @@ class StudentTInnov(InnovDist):
         self.df   = df
         self.mean = mean
         self.scale = np.sqrt((df - 2) / df)
-        self.th_skew = 0
-        if self.df < 4:
-            print("Warning df > 4")
-        self.th_exc_kurt = 6/(self.df - 4) if self.df > 4 else np.inf
-        self.th_rho = 0
-        self.th_nu = self.df
+        self.calculate_theo_moments()
+        
 
     def __call__(self, size, rng):
         return self.mean + rng.standard_t(self.df, size=size) * self.scale
@@ -123,7 +135,18 @@ class StudentTInnov(InnovDist):
     def calibrate_params(self, mu: float, sigma: float) -> "StudentTInnov":
         self.mean  = mu
         self.scale = sigma * np.sqrt((self.df - 2) / self.df)  # any sigma > 0 works
+        self.calculate_theo_moments()
         return self
+    
+    def calculate_theo_moments(self):
+        self.th_skew = 0
+        if self.df < 4:
+            print("Warning df > 4")
+        self.th_exc_kurt = 6/(self.df - 4) if self.df > 4 else np.inf
+        self.th_rho = 0
+        self.th_nu = self.df
+        self.th_mean = self.mean
+        self.th_sigma = self.scale * np.sqrt(self.df/(self.df - 2)) if self.df > 2 else np.inf
 
     def __repr__(self):
         return f"StudentT(μ={self.mean}, df={self.df}, scale={self.scale:.4f})"
@@ -202,17 +225,24 @@ class IIDProcess(DGP):
 
     def __init__(self, innov: InnovDist | Callable = NormalInnov()):
         self.innov = innov
-        self.th_skew = innov.th_skew
-        self.th_exc_kurt = innov.th_exc_kurt
-        self.th_rho = 0
-        self.th_nu = innov.th_nu
+        self.calculate_theo_moments()
+        
 
     def simulate(self, n, rng):
         return self.innov(n, rng)
 
     def calibrate_params(self, mu: float, sigma: float) -> "IIDProcess":
         self.innov.calibrate_params(mu, sigma)
+        self.calculate_theo_moments()
         return self
+    
+    def calculate_theo_moments(self):
+        self.th_skew = self.innov.th_skew
+        self.th_exc_kurt = self.innov.th_exc_kurt
+        self.th_rho = 0
+        self.th_nu = self.innov.th_nu
+        self.th_mean = self.innov.th_mean
+        self.th_sigma = self.innov.th_sigma
 
     def _repr_params(self):
         return repr(self.innov)
@@ -262,12 +292,7 @@ class ARProcess(DGP):
         self.phi   = None if phi is None else np.asarray(phi, dtype=float)
         self.innov = innov
         self.drift = drift
-
-        self.th_skew = innov.th_skew
-        phi_sum_sq = float(np.dot(self.phi, self.phi))
-        self.th_exc_kurt = innov.th_exc_kurt * (1-phi_sum_sq) / (1+phi_sum_sq) #TODO check
-        self.th_rho = phi
-        self.th_nu = innov.th_nu
+        self.calculate_theo_moments()
 
     def simulate(self, n, rng):
         phi = (
@@ -295,7 +320,17 @@ class ARProcess(DGP):
         sigma_innov = sigma * np.sqrt(1.0 - phi_sum_sq)
         self.drift = mu
         self.innov.calibrate_params(0.0, sigma_innov)
+        self.calculate_theo_moments()
         return self
+    
+    def calculate_theo_moments(self):
+        self.th_skew = self.innov.th_skew
+        phi_sum_sq = float(np.dot(self.phi, self.phi))
+        self.th_exc_kurt = self.innov.th_exc_kurt * (1-phi_sum_sq) / (1+phi_sum_sq) #TODO check
+        self.th_rho = self.phi
+        self.th_nu = self.innov.th_nu
+        self.th_mean = self.drift
+        self.th_sigma = self.innov.th_sigma / np.sqrt((1 - phi_sum_sq))
 
     def _repr_params(self):
         phi_str = "random" if self.phi is None else self.phi.tolist()
