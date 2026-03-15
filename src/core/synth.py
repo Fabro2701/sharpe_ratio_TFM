@@ -131,13 +131,14 @@ class SyntheticGenerator:
         pd.DataFrame
         """
         self._validate(specs)
-        rng    = np.random.default_rng(self.seed)
+        #rng    = np.random.default_rng(self.seed)
         chunks = []
 
         for spec in specs:
-            group_rng = np.random.default_rng(
-                rng.integers(0, 2**31)
-            )
+            #group_rng = np.random.default_rng(
+            #    rng.integers(0, 2**31)
+            #)
+            group_rng = np.random.default_rng(self.seed)
             chunks.append(self._simulate_spec(spec, group_rng))
 
         df = pd.concat(chunks)
