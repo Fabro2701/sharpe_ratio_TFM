@@ -183,7 +183,7 @@ _DISPLAY_META: dict[str, dict[str, Any]] = {
         ],
     },
     "iid_student_t": {
-        "parameters":    {"nu": _P_NU},
+        "parameters":    {"exc_kurt": _P_EXC_KURT},
         "formula_latex": r"1 + \theta^2/2 + \frac{3\theta^2}{2(\nu-4)}",
         "latex_name":    r"IID $t_\nu$",
         "plot_style":    {"color": "#FB8C00", "ls": ":", "lw": 2.2},
