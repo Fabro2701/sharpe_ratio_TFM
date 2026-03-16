@@ -95,6 +95,25 @@ class IIDNormalModel(AvarModel):
 
     def fit(self, x):
         return {}
+    
+class IIDStudentTModel(AvarModel):
+    """IID Student-t(ν) returns."""
+    name        = "IID Student-t"
+    short_name  = "iid_student_t"
+    param_names = ("exc_kurt",)
+
+    def _avar(self, sr, exc_kurt=0.0, **kw):
+        #nu = np.asarray(nu, dtype=float)
+        #exc_kurt = np.where(nu > 4, 6.0 / (nu - 4.0), np.nan)
+        return 1.0 + sr**2 / 2.0 + sr**2 * exc_kurt / 4.0 # use nu to analyse
+
+    def fit(self, x):
+        #nu, _mu, _sigma = stats.t.fit(x, floc=float(x.mean())) #might get nu<4 and takes forever
+        #return {"nu": nu}
+        # if we want to analyse nu, may be  in transform the empirical kurt to nu
+        return {
+            "exc_kurt": float(stats.kurtosis(x, fisher=True)),
+        }
 
 
 class IIDNonNormalModel(AvarModel):
@@ -133,21 +152,6 @@ class AR1NormalModel(AvarModel):
         return {"rho": rho}
 
 
-class IIDStudentTModel(AvarModel):
-    """IID Student-t(ν) returns. Requires ν > 4."""
-    name        = "IID Student-t"
-    short_name  = "iid_student_t"
-    param_names = ("nu",)
-
-    def _avar(self, sr, nu=10.0, **kw):
-        nu = np.asarray(nu, dtype=float)
-        exc_kurt = np.where(nu > 4, 6.0 / (nu - 4.0), np.nan)
-        return 1.0 + sr**2 / 2.0 + sr**2 * exc_kurt / 4.0
-
-    def fit(self, x):
-        nu, _mu, _sigma = stats.t.fit(x, floc=float(x.mean()))
-        return {"nu": nu}
-
 
 class AR1NonNormalModel(AvarModel):
     """AR(1) process with Non-Normal innovations."""
@@ -174,9 +178,9 @@ REGISTRY: dict[str, AvarModel] = {
     m.short_name: m
     for m in [
         IIDNormalModel(),
+        IIDStudentTModel(),
         IIDNonNormalModel(),
         AR1NormalModel(),
-        IIDStudentTModel(),
         AR1NonNormalModel(),
     ]
 }
