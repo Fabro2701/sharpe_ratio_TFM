@@ -263,40 +263,34 @@ def _make_stationary_ar(order: int, rng: np.random.Generator) -> np.ndarray:
 
 class ARProcess(DGP):
     """
-    Stationary AR(p) process with pluggable innovation distribution.
+    Stationary AR(1) process with pluggable innovation distribution.
 
     Parameters
     ----------
-    order : int or None
-        AR order.  If None, ``phi`` must be provided explicitly.
-    phi : array-like or None
-        AR coefficients [φ₁, …, φₚ].  If None and ``order`` is set, the
+    phi : 
+        AR coefficients φ₁.  If None, the
         coefficients are drawn randomly at each ``simulate`` call.
     innov : InnovDist or callable
     drift : float
         Constant drift added to every observation.
     """
 
-    label = "AR"
+    label = "AR1"
 
     def __init__(
         self,
-        order: int | None = 1,
-        phi:   Sequence[float] | None = None,
+        phi:   float | None = None,
         innov: InnovDist | Callable = NormalInnov(),
         drift: float = 0.0,
     ):
-        if phi is None and order is None:
-            raise ValueError("Provide either 'order' (random coeffs) or 'phi'.")
-        self.order = order if phi is None else len(phi)
-        self.phi   = None if phi is None else np.asarray(phi, dtype=float)
+        self.phi   = phi 
         self.innov = innov
         self.drift = drift
         self.calculate_theo_moments()
 
     def simulate(self, n, rng):
         phi = (
-            _make_stationary_ar(self.order, rng)
+            _make_stationary_ar(1, rng)[0]
             if self.phi is None
             else self.phi
         )
@@ -313,11 +307,8 @@ class ARProcess(DGP):
         return proc.generate_sample(nsample=n, distrvs=_distrvs) + self.drift
     
     def calibrate_params(self, mu: float, sigma: float) -> "ARProcess":
-        if self.order>1:
-            raise ValueError("order>1 not implemented")
         
-        phi_sum_sq = float(np.dot(self.phi, self.phi))
-        sigma_innov = sigma * np.sqrt(1.0 - phi_sum_sq)
+        sigma_innov = sigma * np.sqrt(1.0 - self.phi**2)
         self.drift = mu
         self.innov.calibrate_params(0.0, sigma_innov)
         self.calculate_theo_moments()
@@ -325,15 +316,15 @@ class ARProcess(DGP):
     
     def calculate_theo_moments(self):
         self.th_skew = self.innov.th_skew
-        phi_sum_sq = float(np.dot(self.phi, self.phi))
+        phi_sum_sq = float(self.phi**2)
         self.th_exc_kurt = self.innov.th_exc_kurt * (1-phi_sum_sq) / (1+phi_sum_sq) #TODO check
         self.th_rho = self.phi
-        self.th_nu = self.innov.th_nu
+        self.th_nu = self.innov.th_nu # x wouldnt be t if ep is t
         self.th_mean = self.drift
         self.th_sigma = self.innov.th_sigma / np.sqrt((1 - phi_sum_sq))
 
     def _repr_params(self):
-        phi_str = "random" if self.phi is None else self.phi.tolist()
+        phi_str = "random" if self.phi is None else self.phi
         return f"phi={phi_str}, innov={self.innov!r}, drift={self.drift}"
 
 

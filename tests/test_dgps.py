@@ -6,29 +6,31 @@ from core.synth import TrajectorySpec, SyntheticGenerator
 
 
 CALIBRATION_MOMENTS = {
+    "iid_normal": {"mu": 0.5, "sigma": 2.0},
     "iid_student": {"mu": 1.5, "sigma": 1.2},
     "ar1_normal": {"mu": 1.5, "sigma": 0.4},
-    "iid_normal": {"mu": 0.5, "sigma": 2.0},
 }
+
 SPEC_BUILDERS = []
 
 for name, params in CALIBRATION_MOMENTS.items():
 
-    if name == "iid_student":
+    if name == "ar1_normal":
         builder = lambda p=params: TrajectorySpec(
-            IIDProcess(StudentTInnov(df=5.5).calibrate_params(**p)),
-            "iid_student", n=10, length=10000
-        )
-
-    elif name == "ar1_normal":
-        builder = lambda p=params: TrajectorySpec(
-            ARProcess(phi=[0.8], drift=2, innov=NormalInnov()).calibrate_params(**p),
+            ARProcess(phi=-0.8, innov=NormalInnov()).calibrate_params(**p),
             "ar1_normal", n=10, length=10000
         )
 
+    elif name == "iid_student":
+        builder = lambda p=params: TrajectorySpec(
+            IIDProcess(StudentTInnov(df=5.5)).calibrate_params(**p),
+            "iid_student", n=10, length=10000
+        )
+
+
     elif name == "iid_normal":
         builder = lambda p=params: TrajectorySpec(
-            IIDProcess(NormalInnov().calibrate_params(**p)),
+            IIDProcess(NormalInnov()).calibrate_params(**p),
             "iid_normal", n=10, length=10000
         )
 

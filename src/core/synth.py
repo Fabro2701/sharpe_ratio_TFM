@@ -276,7 +276,7 @@ if __name__ == "__main__":
     specs = [
         TrajectorySpec(IIDProcess(NormalInnov()),    "iid_normal",  n=100, length=1000),
         TrajectorySpec(IIDProcess(StudentTInnov()),    "iid_student",  n=100, length=1000),
-        TrajectorySpec(ARProcess(phi=[0.8]),          "ar1_normal",  n=100, length=1000),
+        TrajectorySpec(ARProcess(phi=0.8),          "ar1_normal",  n=100, length=1000),
         TrajectorySpec(ARGARCHProcess(ar_lags=1),     "ar1_garch11", n=100, length=(750, 1250)),
     ]
 

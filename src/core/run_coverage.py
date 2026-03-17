@@ -47,22 +47,21 @@ def make_dgp_specs() -> list[DGPSpec]:
 
     return [
         # ── IID families ─────────────────────────────────────────────────
-        DGPSpec(IIDProcess(NormalInnov()),                    "iid_normal"),
-        DGPSpec(IIDProcess(StudentTInnov(df=10)),             "iid_t10"),
-        DGPSpec(IIDProcess(StudentTInnov(df=5)),              "iid_t5"),
+        DGPSpec(IIDProcess(NormalInnov()), "iid_normal"),
+        DGPSpec(IIDProcess(StudentTInnov(df=10)), "iid_t10"),
+        DGPSpec(IIDProcess(StudentTInnov(df=5)), "iid_t5"),
         #DGPSpec(
         #    IIDProcess(GaussianMixtureInnov([-2, 2], [1, 1])),
         #    "iid_gmix",
         #),
 
         # ── AR(1) Normal ──────────────────────────────────────────────────
-        DGPSpec(ARProcess(phi=[0.2], innov=NormalInnov()),    "ar1_phi02_normal"),
-        DGPSpec(ARProcess(phi=[0.6], innov=NormalInnov()),    "ar1_phi06_normal"),
-        DGPSpec(ARProcess(phi=[-0.3], innov=NormalInnov()),   "ar1_phi-03_normal"),
+        DGPSpec(ARProcess(phi=0.6, innov=NormalInnov()),    "ar1_phi06_normal"),
+        DGPSpec(ARProcess(phi=-0.6, innov=NormalInnov()),   "ar1_phi-06_normal"),
 
         # ── AR(1) Student-t ───────────────────────────────────────────────
-        DGPSpec(ARProcess(phi=[0.2], innov=StudentTInnov(df=8)),  "ar1_phi02_t8"),
-        DGPSpec(ARProcess(phi=[0.4], innov=StudentTInnov(df=5)),  "ar1_phi04_t5"),
+        #DGPSpec(ARProcess(phi=[0.2], innov=StudentTInnov(df=8)),  "ar1_phi02_t8"),
+        #DGPSpec(ARProcess(phi=[0.4], innov=StudentTInnov(df=5)),  "ar1_phi04_t5"),
 
         # # ── GARCH(1,1) ────────────────────────────────────────────────────
         # DGPSpec(
@@ -198,11 +197,11 @@ if __name__ == "__main__":
         # configuración rápida de debug
     test_args = [
         "--T", "500",
-        "--n_sim", "1000",
+        "--n_sim", "10000",
         "--theta", "0.5",
-        "--dgps", "iid_normal", "iid_t5",
-        "--models", "iid_normal", "iid_student_t",
-        "--th_moments",
+        "--dgps", "ar1_phi-06_normal",
+        "--models", "iid_normal", "iid_student_t", "iid_nonnormal", "ar1_normal",
+        #"--th_moments",
         "--seed", "42"
     ]
 
