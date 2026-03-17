@@ -140,7 +140,7 @@ class AR1NormalModel(AvarModel):
 
     def _avar(self, sr, rho=0.2, **kw):
         rho = np.clip(np.asarray(rho, dtype=float), -1 + 1e-9, 1 - 1e-9)
-        return (1.0 + rho) / (1.0 - rho) + sr**2 / (2.0 * (1.0 - rho**2))
+        return (1.0 + rho) / (1.0 - rho) + sr**2 / (2.0 * (1.0 - rho**2)) *(1.0 + rho**2)
 
     def fit(self, x):
         lag = x[:-1]; y = x[1:]
