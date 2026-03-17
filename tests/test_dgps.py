@@ -168,6 +168,34 @@ def test_per_trajectory_skew_theo(synthetic_data, dgp_name, builder):# no skewd 
         )
 
 @pytest.mark.parametrize("dgp_name,builder", DGP_PARAMS, ids=DGP_IDS)
+def test_per_trajectory_rho_theo(synthetic_data, dgp_name, builder):
+    data, _ = synthetic_data
+    dgp = builder().dgp
+    theo_rho = dgp.get_theo_moments()["rho"]
+
+    def fit_rho(x):
+        lag = x[:-1]; y = x[1:]
+        dm  = lag - lag.mean()
+        den = float(np.dot(dm, dm))
+        rho = 0.0 if den < 1e-12 else float(
+            np.clip(np.dot(dm, y - y.mean()) / den, -0.999, 0.999)
+        )
+        return rho
+    
+    traj_rho = (
+        data.loc[dgp_name]
+        .groupby("traj_id")["value"]
+        .apply(lambda x: fit_rho(x))
+    )
+
+    for traj_id, sample_rho in traj_rho.items():
+        assert abs(sample_rho - theo_rho) < 0.05, (
+            f"[{dgp_name}] traj_id={traj_id}: "
+            f"sample_rho={sample_rho:.4f}, theo_rho={theo_rho:.4f}, "
+            f"mismatch={abs(sample_rho - theo_rho):.4f}"
+        )
+
+@pytest.mark.parametrize("dgp_name,builder", DGP_PARAMS, ids=DGP_IDS)
 def test_reproducibility_per_traj(synthetic_data, dgp_name, builder):
     data, _ = synthetic_data
     data_repro = SyntheticGenerator(seed=42).generate([builder()])
