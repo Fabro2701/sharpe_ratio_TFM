@@ -1,6 +1,10 @@
+
+import pytest
+
 import numpy as np
 import pandas as pd
-import pytest
+from scipy import stats
+
 from core.dgp import ARProcess, ARGARCHProcess, IIDProcess, NormalInnov, StudentTInnov
 from core.synth import TrajectorySpec, SyntheticGenerator
 
@@ -12,26 +16,27 @@ CALIBRATION_MOMENTS = {
 }
 
 SPEC_BUILDERS = []
-
+length = int(1e5)
+n_traj = 10
 for name, params in CALIBRATION_MOMENTS.items():
 
     if name == "ar1_normal":
         builder = lambda p=params: TrajectorySpec(
             ARProcess(phi=-0.8, innov=NormalInnov()).calibrate_params(**p),
-            "ar1_normal", n=10, length=10000
+            "ar1_normal", n=n_traj, length=length
         )
 
     elif name == "iid_student":
         builder = lambda p=params: TrajectorySpec(
-            IIDProcess(StudentTInnov(df=5.5)).calibrate_params(**p),
-            "iid_student", n=10, length=10000
+            IIDProcess(StudentTInnov(df=6)).calibrate_params(**p),
+            "iid_student", n=n_traj, length=length
         )
 
 
     elif name == "iid_normal":
         builder = lambda p=params: TrajectorySpec(
             IIDProcess(NormalInnov()).calibrate_params(**p),
-            "iid_normal", n=10, length=10000
+            "iid_normal", n=n_traj, length=length
         )
 
     SPEC_BUILDERS.append((name, builder))
@@ -124,6 +129,43 @@ def test_per_trajectory_std_theo(synthetic_data, dgp_name, builder):
             f"mismatch={abs(sample_std - theo_sigma):.4f}"
         )
 
+@pytest.mark.parametrize("dgp_name,builder", DGP_PARAMS, ids=DGP_IDS)
+def test_per_trajectory_kurt_theo(synthetic_data, dgp_name, builder):
+    data, _ = synthetic_data
+    dgp = builder().dgp
+    theo_kurt = dgp.get_theo_moments()["exc_kurt"]
+
+    traj_kurt = (
+        data.loc[dgp_name]
+        .groupby("traj_id")["value"]
+        .apply(lambda x: stats.kurtosis(x, fisher=True))
+    )
+
+    for traj_id, sample_kurt in traj_kurt.items():
+        assert abs(sample_kurt - theo_kurt) < 2.0, (
+            f"[{dgp_name}] traj_id={traj_id}: "
+            f"sample_exc_kurt={sample_kurt:.4f}, theo_exc_kurt={theo_kurt:.4f}, "
+            f"mismatch={abs(sample_kurt - theo_kurt):.4f}"
+        )
+
+@pytest.mark.parametrize("dgp_name,builder", DGP_PARAMS, ids=DGP_IDS)
+def test_per_trajectory_skew_theo(synthetic_data, dgp_name, builder):# no skewd gdps yet
+    data, _ = synthetic_data
+    dgp = builder().dgp
+    theo_skew = dgp.get_theo_moments()["skew"]
+
+    traj_skew = (
+        data.loc[dgp_name]
+        .groupby("traj_id")["value"]
+        .apply(lambda x: stats.skew(x))
+    )
+
+    for traj_id, sample_skew in traj_skew.items():
+        assert abs(sample_skew - theo_skew) < 1.0, (
+            f"[{dgp_name}] traj_id={traj_id}: "
+            f"sample_skew={sample_skew:.4f}, theo_skew={theo_skew:.4f}, "
+            f"mismatch={abs(sample_skew - theo_skew):.4f}"
+        )
 
 @pytest.mark.parametrize("dgp_name,builder", DGP_PARAMS, ids=DGP_IDS)
 def test_reproducibility_per_traj(synthetic_data, dgp_name, builder):

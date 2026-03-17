@@ -317,7 +317,7 @@ class ARProcess(DGP):
     def calculate_theo_moments(self):
         self.th_skew = self.innov.th_skew
         phi_sum_sq = float(self.phi**2)
-        self.th_exc_kurt = self.innov.th_exc_kurt * (1-phi_sum_sq) / (1+phi_sum_sq) #TODO check
+        self.th_exc_kurt = self.innov.th_exc_kurt * (1-phi_sum_sq) / (1+phi_sum_sq)
         self.th_rho = self.phi
         self.th_nu = self.innov.th_nu # x wouldnt be t if ep is t
         self.th_mean = self.drift
