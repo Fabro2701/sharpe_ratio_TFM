@@ -160,17 +160,23 @@ class AR1NonNormalModel(AvarModel):
     param_names = ("rho", "skew", "exc_kurt")
 
     def _avar(self, sr, rho=0.2, skew=0.0, exc_kurt=0.0, **kw):
-        rho    = np.clip(np.asarray(rho, dtype=float), -1 + 1e-9, 1 - 1e-9)
         base   = (1.0 + rho)  / (1.0 - rho)
-        var_c  =  sr**2        / (2.0 * (1.0 - rho**2))
-        skew_c = -sr * skew   / (1.0 - rho)**2
-        kurt_c =  sr**2 * exc_kurt / (4.0 * (1.0 - rho**2))
-        return base + var_c + skew_c + kurt_c
+        aux1 = - sr * skew * (1 + rho+ rho**2) / (1.0 - rho**2)
+        aux2 =  sr**2 * (exc_kurt + 2)/4 * (1 + rho**2) / (1.0 - rho**2)
+        return base + aux1 + aux2
 
     def fit(self, x):
-        raise NotImplementedError(
-            "AR(1) Non-Normal: estimate rho, skew, exc_kurt separately."
+        lag = x[:-1]; y = x[1:]
+        dm  = lag - lag.mean()
+        den = float(np.dot(dm, dm))
+        rho = 0.0 if den < 1e-12 else float(
+            np.clip(np.dot(dm, y - y.mean()) / den, -0.999, 0.999)
         )
+        return {
+            "skew":     float(stats.skew(x)),
+            "exc_kurt": float(stats.kurtosis(x, fisher=True)),
+            "rho": rho
+        }
 
 
 
