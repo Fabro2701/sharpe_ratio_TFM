@@ -12,32 +12,51 @@ from core.synth import TrajectorySpec, SyntheticGenerator
 CALIBRATION_MOMENTS = {
     "iid_normal": {"mu": 0.5, "sigma": 2.0},
     "iid_student": {"mu": 1.5, "sigma": 1.2},
-    "ar1_normal": {"mu": 1.5, "sigma": 0.4},
+    "ar1_06_normal": {"mu": 1.5, "sigma": 0.4},
+    "ar1_m06_normal": {"mu": 1.5, "sigma": 0.4},
+    "ar1_06_t": {"mu": 1.5, "sigma": 0.4},
+    "ar1_m06_t": {"mu": 1.5, "sigma": 0.4},
 }
 
 SPEC_BUILDERS = []
 length = int(1e5)
 n_traj = 10
 for name, params in CALIBRATION_MOMENTS.items():
-
-    if name == "ar1_normal":
+    if name == "iid_normal":
         builder = lambda p=params: TrajectorySpec(
-            ARProcess(phi=-0.8, innov=NormalInnov()).calibrate_params(**p),
-            "ar1_normal", n=n_traj, length=length
+            IIDProcess(NormalInnov()).calibrate_params(**p),
+            "iid_normal", n=n_traj, length=length
         )
-
     elif name == "iid_student":
         builder = lambda p=params: TrajectorySpec(
             IIDProcess(StudentTInnov(df=6)).calibrate_params(**p),
             "iid_student", n=n_traj, length=length
         )
-
-
-    elif name == "iid_normal":
+    elif name == "ar1_06_normal":
         builder = lambda p=params: TrajectorySpec(
-            IIDProcess(NormalInnov()).calibrate_params(**p),
-            "iid_normal", n=n_traj, length=length
+            ARProcess(phi=0.6, innov=NormalInnov()).calibrate_params(**p),
+            "ar1_06_normal", n=n_traj, length=length
         )
+    elif name == "ar1_m06_normal":
+        builder = lambda p=params: TrajectorySpec(
+            ARProcess(phi=-0.6, innov=NormalInnov()).calibrate_params(**p),
+            "ar1_m06_normal", n=n_traj, length=length
+        ) 
+    elif name == "ar1_06_t":
+        builder = lambda p=params: TrajectorySpec(
+            ARProcess(phi=0.6, innov=StudentTInnov(df=6)).calibrate_params(**p),
+            "ar1_06_t", n=n_traj, length=length
+        )
+    elif name == "ar1_m06_t":
+        builder = lambda p=params: TrajectorySpec(
+            ARProcess(phi=-0.6, innov=StudentTInnov(df=6)).calibrate_params(**p),
+            "ar1_m06_t", n=n_traj, length=length
+        )
+        
+
+
+
+    
 
     SPEC_BUILDERS.append((name, builder))
 
