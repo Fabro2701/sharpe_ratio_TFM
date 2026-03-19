@@ -63,9 +63,9 @@ def run_coverage_study(
 
     calibrated = []
     for spec in dgp_specs:
-        print("before: ", spec.dgp)
+        #print("before: ", spec.dgp)
         calibrate_dgp(spec.dgp, target_sr, mu = 0.15)
-        print("after: ", spec.dgp)
+        #print("after: ", spec.dgp)
         calibrated.append((spec.name, spec.dgp, target_sr))
 
     total = len(calibrated) * len(avar_models)

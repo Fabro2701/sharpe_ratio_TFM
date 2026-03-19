@@ -60,8 +60,8 @@ def make_dgp_specs() -> list[DGPSpec]:
         DGPSpec(ARProcess(phi=-0.6, innov=NormalInnov()),   "ar1_phi-06_normal"),
 
         # ── AR(1) Student-t ───────────────────────────────────────────────
-        #DGPSpec(ARProcess(phi=[0.2], innov=StudentTInnov(df=8)),  "ar1_phi02_t8"),
-        #DGPSpec(ARProcess(phi=[0.4], innov=StudentTInnov(df=5)),  "ar1_phi04_t5"),
+        DGPSpec(ARProcess(phi=0.6, innov=StudentTInnov(df=6)),  "ar1_phi06_t6"),
+        DGPSpec(ARProcess(phi=-0.6, innov=StudentTInnov(df=6)),  "ar1_phi-06_t6"),
 
         # # ── GARCH(1,1) ────────────────────────────────────────────────────
         # DGPSpec(
@@ -192,6 +192,7 @@ def main(cli_args=None):
     print(f"\nRaw results saved → {out_path}")
 
 
+
 if __name__ == "__main__":
     #main()
         # configuración rápida de debug
@@ -199,8 +200,8 @@ if __name__ == "__main__":
         "--T", "500",
         "--n_sim", "10000",
         "--theta", "0.5",
-        "--dgps", "ar1_phi-06_normal",
-        "--models", "iid_normal", "iid_student_t", "iid_nonnormal", "ar1_normal",
+        "--dgps", "iid_normal", "iid_t5", "ar1_phi06_normal", "ar1_phi06_t6",
+        "--models", "iid_normal", "iid_student_t", "iid_nonnormal", "ar1_normal", "ar1_nonnormal",
         #"--th_moments",
         "--seed", "42"
     ]
