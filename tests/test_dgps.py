@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from core.dgp import ARProcess, ARGARCHProcess, IIDProcess, NormalInnov, StudentTInnov
+from core.dgp import IIDProcess, NormalInnov, StudentTInnov, ARProcess, GARCHProcess
 from core.synth import TrajectorySpec, SyntheticGenerator
 
 
@@ -16,6 +16,7 @@ CALIBRATION_MOMENTS = {
     "ar1_m06_normal": {"mu": 1.5, "sigma": 0.4},
     "ar1_06_t": {"mu": 1.5, "sigma": 0.4},
     "ar1_m06_t": {"mu": 1.5, "sigma": 0.4},
+    "garch_n": {"mu": 1.5, "sigma": 0.4},
 }
 
 SPEC_BUILDERS = []
@@ -51,6 +52,12 @@ for name, params in CALIBRATION_MOMENTS.items():
         builder = lambda p=params: TrajectorySpec(
             ARProcess(phi=-0.6, innov=StudentTInnov(df=6)).calibrate_params(**p),
             "ar1_m06_t", n=n_traj, length=length
+        )
+    elif name == "garch_n":
+        builder = lambda p=params: TrajectorySpec(
+            GARCHProcess(mu=0.05, omega=0.05, alpha=0.10, beta=0.85,
+             dist='normal').calibrate_params(**p),
+            "garch_n", n=n_traj, length=length
         )
         
 

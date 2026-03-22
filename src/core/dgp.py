@@ -16,8 +16,15 @@ from dataclasses import dataclass, field
 from typing import Callable, Sequence
 
 import numpy as np
-from arch import arch_model
 from statsmodels.tsa.arima_process import ArmaProcess
+# --- arch imports ---
+from arch import arch_model
+from arch.univariate import ConstantMean, GARCH
+from arch.univariate.distribution import (
+    Normal,
+    StudentsT,
+    SkewStudent,
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -315,7 +322,7 @@ class ARProcess(DGP):
         return self
     
     def calculate_theo_moments(self):
-        self.th_skew = self.innov.th_skew
+        self.th_skew = self.innov.th_skew #not sure
         phi_sum_sq = float(self.phi**2)
         self.th_exc_kurt = self.innov.th_exc_kurt * (1-phi_sum_sq) / (1+phi_sum_sq)
         self.th_rho = self.phi
@@ -333,62 +340,66 @@ class ARProcess(DGP):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class GARCHProcess(DGP):
-    """
-    Pure GARCH(p, q) with zero mean, driven by arch.
-
-    Parameters
-    ----------
-    p, q : int
-        GARCH lag orders.
-    omega, alpha, beta : float
-        Standard GARCH(1,1) parameters.  For higher orders pass lists.
-    dist : str
-        Innovation distribution recognised by arch: ``'normal'``, ``'t'``,
-        ``'skewt'``, ``'ged'``.
-    dist_params : dict
-        Extra distribution parameters, e.g. ``{"nu": 8}`` for Student-t.
-    """
 
     label = "GARCH"
 
     def __init__(
         self,
-        p: int = 1,
-        q: int = 1,
+        mu: float = 0.00,
         omega: float = 0.05,
         alpha: float | list = 0.10,
         beta:  float | list = 0.85,
         dist:  str = "normal",
-        dist_params: dict | None = None,
     ):
-        self.p    = p
-        self.q    = q
+        self.mu = mu
+        self.omega = omega
+        self.alpha = alpha
+        self.beta = beta
         self.dist = dist
-
-        alpha_ = [alpha] if np.isscalar(alpha) else list(alpha)
-        beta_  = [beta]  if np.isscalar(beta)  else list(beta)
-        self._params = [omega] + alpha_ + beta_
-
-        dp = dist_params or {}
-        if dist == "t":
-            self._params += [dp.get("nu", 8.0)]
-        elif dist == "skewt":
-            self._params += [dp.get("nu", 8.0), dp.get("lam", 0.0)]
-        elif dist == "ged":
-            self._params += [dp.get("nu", 1.5)]
+        self.calculate_theo_moments()
+        
+        
 
     def simulate(self, n, rng):
-        """GARCH reproducibility PENDING"""
-        am  = arch_model(y=None, mean="Zero", vol="GARCH",
-                         p=self.p, q=self.q, dist=self.dist)
-        sim = am.simulate(params=self._params, nobs=n, burn=500)
-        return sim["data"].values
+        m = ConstantMean()
+        mean_params = [self.mu]  
+        m.volatility = GARCH(p=1, q=1)
+        vol_params = [self.omega, self.alpha, self.beta]
+
+        if self.dist == "normal":
+            distribution = Normal(seed=rng)
+        else:
+            raise ValueError(f"dist not supp: {self.dist}")
+        m.distribution = distribution
+        dist_params = list(m.distribution.starting_values(np.array([])))
+
+        params = mean_params + vol_params + dist_params
+
+        model = m
+        result = model.simulate(
+                params,
+                nobs=n,
+                burn=100
+            )
+        return result["data"].values
 
     def calibrate_params(self, mu: float, sigma: float):
-        raise NotImplementedError(self.__class__)
+        self.mu = mu
+        self.omega = sigma**2 * (1 - self.alpha - self.beta)
+        self.calculate_theo_moments()
+        return self
+
+    def calculate_theo_moments(self):
+        self.th_skew = 0 #dificil, aproximar con taylor...
+        self.th_exc_kurt = 0
+        self.th_rho = 0
+        self.th_nu = 0
+        self.th_mean = self.mu
+        self.th_sigma = np.sqrt(self.omega / (1 - self.alpha - self.beta))
+        #print("garch th mom not calc")
 
     def _repr_params(self):
-        return f"p={self.p}, q={self.q}, params={self._params}, dist={self.dist!r}"
+        return f"omega={self.omega},alpha={self.alpha},beta={self.beta}, dist={self.dist!r}"
 
 
 class ARGARCHProcess(DGP):
@@ -492,60 +503,3 @@ class WithOutliers(DGP):
         return f"{self.base!r}, fraction={self.fraction}, scale={self.scale}"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Constant-mean GARCH  (arch 'Constant' mean equation)
-# ─────────────────────────────────────────────────────────────────────────────
-
-class ConstMeanGARCHProcess(DGP):
-    """
-    GARCH(p, q) with a constant mean:  y_t = μ + ε_t,  ε_t ~ GARCH.
-
-    Calibration for unit unconditional variance and target SR θ₀:
-        ω = 1 − Σα − Σβ,   μ = θ₀
-
-    Parameters
-    ----------
-    mu : float           constant mean (= target SR when σ_uncond = 1)
-    omega, alpha, beta : GARCH(1,1) parameters
-    p, q : int           GARCH orders
-    dist : str           'normal', 't', 'skewt', 'ged'
-    dist_params : dict   e.g. {"nu": 8} for Student-t
-    """
-
-    label = "ConstMean-GARCH"
-
-    def __init__(
-        self,
-        mu:    float = 0.0,
-        p:     int   = 1,
-        q:     int   = 1,
-        omega: float = 0.05,
-        alpha: float | list = 0.10,
-        beta:  float | list = 0.85,
-        dist:  str = "normal",
-        dist_params: dict | None = None,
-    ):
-        self.mu, self.p, self.q, self.dist = mu, p, q, dist
-        alpha_ = [alpha] if np.isscalar(alpha) else list(alpha)
-        beta_  = [beta]  if np.isscalar(beta)  else list(beta)
-        self._params = [mu, omega] + alpha_ + beta_
-        dp = dist_params or {}
-        if dist == "t":
-            self._params += [dp.get("nu", 8.0)]
-        elif dist == "skewt":
-            self._params += [dp.get("nu", 8.0), dp.get("lam", 0.0)]
-        elif dist == "ged":
-            self._params += [dp.get("nu", 1.5)]
-
-    def simulate(self, n, rng):
-        am  = arch_model(y=None, mean="Constant", vol="GARCH",
-                         p=self.p, q=self.q, dist=self.dist)
-        sim = am.simulate(params=self._params, nobs=n, burn=500)
-        return sim["data"].values
-    
-    
-    def calibrate_params(self, mu: float, sigma: float):
-        raise NotImplementedError(self.__class__)
-
-    def _repr_params(self):
-        return f"mu={self.mu}, p={self.p}, q={self.q}, params={self._params}, dist={self.dist!r}"
