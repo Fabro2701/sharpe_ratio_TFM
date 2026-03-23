@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Sequence
 
 import numpy as np
+from scipy.special import gamma as gamma_func
 from statsmodels.tsa.arima_process import ArmaProcess
 # --- arch imports ---
 from arch import arch_model
@@ -157,6 +158,132 @@ class StudentTInnov(InnovDist):
 
     def __repr__(self):
         return f"StudentT(μ={self.mean}, df={self.df}, scale={self.scale:.4f})"
+
+
+class SkewTInnov(InnovDist):
+    """
+    Hansen (1994) skewed-t innovation.
+
+    Parameterisation matches arch's SkewStudent:
+        df  (nu)  — degrees of freedom, must be > 2
+        eta       — skewness parameter in (-1, 1); 0 → symmetric t
+
+    The raw draw has E[raw] = 0, Var[raw] = 1 by construction of the
+    Hansen constants (a, b, c).  Location/scale are then applied:
+
+        X = mean + scale * raw
+
+    Default (uncalibrated): mean=0, scale=sqrt((df-2)/df) → unit variance
+    (same convention as StudentTInnov).
+
+    Sampling algorithm
+    ------------------
+    Conditional on the sign split at -a/b:
+      • prob (1+eta)/2  → draw -|T| from t(df), scale by (1-eta)
+      • prob (1-eta)/2  → draw  |T| from t(df), scale by (1+eta)
+    then apply the a/b shift to standardise.
+    """
+
+    def __init__(self, df: float = 5.0, eta: float = 0.0, mean: float = 0.0):
+        self.df   = df
+        self.eta  = eta
+        self.mean = mean
+        self._compute_constants()
+        # default scale: same unit-variance convention as StudentTInnov
+        self.scale = np.sqrt((df - 2) / df)
+        self.calculate_theo_moments()
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _compute_constants(self):
+        """Pre-compute Hansen's a, b, c constants from df and eta."""
+        nu, eta = self.df, self.eta
+        self._c = gamma_func((nu + 1) / 2) / (
+            np.sqrt(np.pi * (nu - 2)) * gamma_func(nu / 2)
+        )
+        self._a = 4.0 * eta * self._c * (nu - 2) / (nu - 1)
+        self._b = np.sqrt(1.0 + 3.0 * eta**2 - self._a**2)
+
+    def _raw_sample(self, size: int, rng: np.random.Generator) -> np.ndarray:
+        """Draw from the standardised (mean=0, var=1) Hansen skewed-t."""
+        t = rng.standard_t(self.df, size=size)
+        u = rng.uniform(0.0, 1.0, size=size)
+        left = u < (1.0 + self.eta) / 2.0
+        # left piece: -|t| scaled by (1-eta);  right: |t| scaled by (1+eta)
+        z = np.where(left, -np.abs(t) * (1.0 - self.eta),
+                            np.abs(t) * (1.0 + self.eta))
+        return (z - self._a) / self._b
+
+    # ------------------------------------------------------------------
+    # InnovDist interface
+    # ------------------------------------------------------------------
+
+    def __call__(self, size: int, rng: np.random.Generator) -> np.ndarray:
+        return self.mean + self.scale * self._raw_sample(size, rng)
+
+    def calibrate_params(self, mu: float, sigma: float) -> "SkewTInnov":
+        self.mean  = mu
+        # raw has variance 1, so X has std = scale * sqrt(df/(df-2))
+        self.scale = sigma * np.sqrt((self.df - 2) / self.df)
+        self.calculate_theo_moments()
+        return self
+
+    def calculate_theo_moments(self):
+        nu, eta = self.df, self.eta
+        # --- skewness of Hansen's skewed-t (closed-form, df > 3) ---
+        # E[raw^3] involves the third absolute moment of t(nu)
+        # m3t = E[|T|^3] for T ~ t(nu)  =  (nu-2)*sqrt(nu) * Gamma(2) / (... )
+        # Using: E[|T|^k] = nu^(k/2)*B((k+1)/2, (nu-k)/2)/B(1/2, nu/2) for k < nu
+        if nu > 3:
+            # E[T^2] = nu/(nu-2), E[|T|^3] via incomplete beta moments
+            # Simpler route: use the known third moment formula
+            # Skewness of raw = 2*eta*(1+eta^2)*m3 - 3*a*sigma_raw^2 ...
+            # Exact formula (Hansen 1994, eq. after (3)):
+            # skew(raw) = [-2*eta*(3*eta^2+1)*c*(nu-2)^(3/2)/(nu-1)] ... complex
+            # We approximate by Monte Carlo hint or set to non-trivial value.
+            # Simplification: for now derive numerically via moment formula.
+            # Left-piece contribution (prob p = (1+eta)/2, value z = -|T|(1-eta)):
+            #   E[z^3 | left] = -(1-eta)^3 * E[|T|^3]   (T ~ t(nu))
+            # Right-piece contribution (prob 1-p = (1-eta)/2, value z = |T|(1+eta)):
+            #   E[z^3 | right] = (1+eta)^3 * E[|T|^3]
+            # E[|T|^3] for t(nu): use gamma ratio
+            from scipy.special import gamma as gf
+            if nu > 3:
+                e_abs_t3 = (
+                    (nu / 2) ** (3 / 2)
+                    * gf(2.0)
+                    * gf((nu - 3) / 2)
+                    / (np.sqrt(np.pi) * gf(nu / 2))
+                )
+            else:
+                e_abs_t3 = np.inf
+            p = (1.0 + eta) / 2.0
+            e_z3 = p * (-(1 - eta) ** 3) * e_abs_t3 + (1 - p) * (1 + eta) ** 3 * e_abs_t3
+            e_raw3 = (e_z3 - 3 * self._a * 1.0 - self._a**3) / self._b**3  # Var(raw)=1
+            # actually raw = (z - a)/b, so E[raw^3] = (E[z^3] - 3a*E[z^2] + 3a^2*E[z] - a^3)/b^3
+            # E[z] = a  (by construction), E[z^2] = b^2 + a^2 (Var(raw)=1 => Var(z)=b^2)
+            e_z  = self._a
+            e_z2 = self._b**2 + self._a**2
+            e_raw3 = (e_z3 - 3 * self._a * e_z2 + 3 * self._a**2 * e_z - self._a**3) / self._b**3
+            self.th_skew = float(e_raw3)  # raw has unit variance, so skew = E[raw^3]
+        else:
+            self.th_skew = np.nan  # undefined for df <= 3
+
+        # excess kurtosis: same as symmetric t for the standardised version
+        # (eta shifts skewness but the excess kurtosis formula stays 6/(df-4))
+        self.th_exc_kurt = 6.0 / (nu - 4.0) if nu > 4 else np.inf
+        self.th_rho  = 0.0
+        self.th_nu   = nu
+        self.th_mean = self.mean
+        self.th_sigma = self.scale * np.sqrt(nu / (nu - 2)) if nu > 2 else np.inf
+
+    def __repr__(self):
+        return (
+            f"SkewT(μ={self.mean}, df={self.df}, η={self.eta}, "
+            f"scale={self.scale:.4f})"
+        )
 
 
 class UniformInnov(InnovDist):
@@ -339,136 +466,190 @@ class ARProcess(DGP):
 # GARCH family  (via arch)
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Default extra distribution parameters for each supported distribution type.
+# These are appended to [mu, omega, alpha, beta] when calling arch's simulate().
+#
+#   normal  : no extra params
+#   t       : [df]            — degrees of freedom, must be > 2
+#   skewt   : [df, lambda]    — df > 2, lambda (skewness) in (-1, 1)
+#
+_GARCH_DIST_DEFAULTS: dict[str, list[float]] = {
+    "normal": [],
+    "t":      [8.0],
+    "skewt":  [8.0, 0.0],
+}
+
+
 class GARCHProcess(DGP):
-
+    """
+    GARCH(1,1) with pluggable innovation distribution.
+ 
+    Parameters
+    ----------
+    mu, omega, alpha, beta : GARCH mean / vol parameters.
+    dist : one of ``"normal"``, ``"t"``, ``"skewt"``.
+    dist_params : extra parameters for the chosen distribution.
+        • normal  → []
+        • t       → [df]          (default: [8.0])
+        • skewt   → [df, lambda]  (default: [8.0, 0.0])
+      If *None*, sensible defaults are used (see above).
+    """
+ 
     label = "GARCH"
-
+ 
     def __init__(
         self,
-        mu: float = 0.00,
+        mu:    float = 0.00,
         omega: float = 0.05,
         alpha: float | list = 0.10,
         beta:  float | list = 0.85,
         dist:  str = "normal",
+        dist_params: list[float] | None = None,
     ):
-        self.mu = mu
+        if dist not in _GARCH_DIST_DEFAULTS:
+            raise ValueError(
+                f"dist must be one of {list(_GARCH_DIST_DEFAULTS)}; got {dist!r}"
+            )
+        self.mu    = mu
         self.omega = omega
         self.alpha = alpha
-        self.beta = beta
-        self.dist = dist
+        self.beta  = beta
+        self.dist  = dist
+        self.dist_params = (
+            list(dist_params)
+            if dist_params is not None
+            else list(_GARCH_DIST_DEFAULTS[dist])
+        )
         self.calculate_theo_moments()
-        
-        
-
-    def simulate(self, n, rng):
+ 
+    # ------------------------------------------------------------------
+    # Properties for convenience access to dist_params by name
+    # ------------------------------------------------------------------
+ 
+    @property
+    def df(self) -> float | None:
+        """Degrees of freedom (t and skewt only)."""
+        return self.dist_params[0] if len(self.dist_params) >= 1 else None
+ 
+    @property
+    def lam(self) -> float | None:
+        """Skewness lambda (skewt only)."""
+        return self.dist_params[1] if len(self.dist_params) >= 2 else None
+ 
+    # ------------------------------------------------------------------
+    # DGP interface
+    # ------------------------------------------------------------------
+ 
+    def simulate(self, n: int, rng: np.random.Generator) -> np.ndarray:
         m = ConstantMean()
-        mean_params = [self.mu]  
         m.volatility = GARCH(p=1, q=1)
-        vol_params = [self.omega, self.alpha, self.beta]
-
+ 
         if self.dist == "normal":
-            distribution = Normal(seed=rng)
-        else:
-            raise ValueError(f"dist not supp: {self.dist}")
-        m.distribution = distribution
-        dist_params = list(m.distribution.starting_values(np.array([])))
-
-        params = mean_params + vol_params + dist_params
-
-        model = m
-        result = model.simulate(
-                params,
-                nobs=n,
-                burn=100
-            )
+            m.distribution = Normal(seed=rng)
+        elif self.dist == "t":
+            m.distribution = StudentsT(seed=rng)
+        elif self.dist == "skewt":
+            m.distribution = SkewStudent(seed=rng)
+ 
+        # Full parameter vector: [mu] + [omega, alpha, beta] + dist_params
+        params = [self.mu, self.omega, self.alpha, self.beta] + self.dist_params
+ 
+        result = m.simulate(params, nobs=n, burn=100)
         return result["data"].values
-
-    def calibrate_params(self, mu: float, sigma: float):
-        self.mu = mu
+ 
+    def calibrate_params(self, mu: float, sigma: float) -> "GARCHProcess":
+        self.mu    = mu
         self.omega = sigma**2 * (1 - self.alpha - self.beta)
         self.calculate_theo_moments()
         return self
-
+ 
+    # ------------------------------------------------------------------
+    # Innovation-distribution moment helpers
+    # ------------------------------------------------------------------
+ 
+    def _innov_exc_kurt(self) -> float:
+        """Excess kurtosis κ_ε of the standardised innovation."""
+        if self.dist == "normal":
+            return 0.0
+        df = self.dist_params[0]
+        return 6.0 / (df - 4.0) if df > 4.0 else np.inf
+ 
+    def _innov_skew(self) -> float:
+        """Skewness of the standardised innovation."""
+        if self.dist in ("normal", "t"):
+            return 0.0
+        # Hansen (1994) skewed-t — same algebra as SkewTInnov.calculate_theo_moments
+        df, lam = self.dist_params[0], self.dist_params[1]
+        if df <= 3.0:
+            return np.nan
+        from scipy.special import gamma as gf
+        c   = gf((df + 1) / 2) / (np.sqrt(np.pi * (df - 2)) * gf(df / 2))
+        a   = 4.0 * lam * c * (df - 2) / (df - 1)
+        b   = np.sqrt(1.0 + 3.0 * lam**2 - a**2)
+        # E[|T|^3] for T ~ t(df), valid for df > 3
+        # Using E[|T|^k] = df^(k/2) Γ((k+1)/2) Γ((df-k)/2) / (√π Γ(df/2))
+        # with k=3 and Γ(2) = 1:
+        e_abs_t3 = df ** (3 / 2) * gf((df - 3) / 2) / (np.sqrt(np.pi) * gf(df / 2))
+        p_l  = (1.0 + lam) / 2.0
+        e_z3 = (
+            p_l  * (-(1.0 - lam) ** 3) * e_abs_t3
+            + (1.0 - p_l) * (1.0 + lam) ** 3 * e_abs_t3
+        )
+        # raw = (z - a) / b  =>  E[raw^3] via binomial expansion
+        e_z  = a
+        e_z2 = b**2 + a**2   # Var(raw)=1  =>  Var(z)=b^2
+        e_raw3 = (e_z3 - 3.0 * a * e_z2 + 3.0 * a**2 * e_z - a**3) / b**3
+        return float(e_raw3)
+ 
+    # ------------------------------------------------------------------
+ 
     def calculate_theo_moments(self):
-        self.th_skew = 0 #dificil, aproximar con taylor...
-        self.th_exc_kurt = 0
-        self.th_rho = 0
-        self.th_nu = 0
-        self.th_mean = self.mu
-        self.th_sigma = np.sqrt(self.omega / (1 - self.alpha - self.beta))
-        #print("garch th mom not calc")
-
+        alpha, beta = self.alpha, self.beta
+        p = alpha + beta                          # GARCH persistence
+ 
+        kappa_e = self._innov_exc_kurt()          # innovation excess kurtosis
+        skew_e  = self._innov_skew()              # innovation skewness
+ 
+        self.th_mean  = self.mu
+        self.th_sigma = np.sqrt(self.omega / (1.0 - p))
+        self.th_rho   = 0.0
+        self.th_nu    = self.df if self.dist in ("t", "skewt") else np.inf
+ 
+        # Denominator shared by both kurtosis and Var(σ²)/σ̄⁴.
+        # The 4th moment of y_t (and hence Var(σ²)) exists iff denom > 0.
+        denom = 1.0 - p**2 - alpha**2 * (kappa_e + 2.0)
+ 
+        if np.isfinite(kappa_e) and denom > 0.0:
+            # --- excess kurtosis (exact closed-form for GARCH(1,1)) ---
+            # κ_y = [κ_ε(1-p²+3α²) + 6α²] / denom
+            self.th_exc_kurt = (
+                kappa_e * (1.0 - p**2 + 3.0 * alpha**2) + 6.0 * alpha**2
+            ) / denom
+ 
+            # --- skewness: Taylor expansion of E[σ_t^3] up to the 3/8 term ---
+            # E[(σ²)^(3/2)] ≈ σ̄³ · (1 + 3/8 · Var(σ²)/σ̄⁴)
+            # Var(σ²)/σ̄⁴ = α²(κ_ε+2) / denom
+            var_sig2_norm = alpha**2 * (kappa_e + 2.0) / denom
+            self.th_skew = skew_e * (1.0 + (3.0 / 8.0) * var_sig2_norm)
+        else:
+            self.th_exc_kurt = np.inf
+            self.th_skew     = np.nan
+ 
     def _repr_params(self):
-        return f"omega={self.omega},alpha={self.alpha},beta={self.beta}, dist={self.dist!r}"
-
-
-class ARGARCHProcess(DGP):
-    """
-    AR(p_mean)-GARCH(p_vol, q_vol) process with optional Student-t innovations.
-
-    This is the workhorse for realistic financial return simulation.
-
-    Parameters
-    ----------
-    ar_lags : int
-        Number of AR lags in the mean equation.
-    p_vol, q_vol : int
-        GARCH orders for the variance equation.
-    params : list
-        Full parameter vector in arch order:
-        [const, φ₁, …, φₚ, ω, α₁, …, αₚ, β₁, …, βq, (ν if dist='t')]
-        If None, sensible defaults are used.
-    dist : str
-        ``'normal'``, ``'t'``, ``'skewt'``, ``'ged'``.
-    """
-
-    label = "AR-GARCH"
-
-    def __init__(
-        self,
-        ar_lags: int = 1,
-        p_vol:   int = 1,
-        q_vol:   int = 1,
-        params:  list | None = None,
-        dist:    str = "t",
-    ):
-        self.ar_lags = ar_lags
-        self.p_vol   = p_vol
-        self.q_vol   = q_vol
-        self.dist    = dist
-        self._params = params or self._default_params()
-
-    def _default_params(self) -> list:
-        const  = 0.0
-        phi    = [0.1] * self.ar_lags
-        omega  = 0.05
-        alpha  = [0.08] * self.p_vol
-        beta   = [0.87] * self.q_vol
-        p      = [const] + phi + [omega] + alpha + beta
-        if self.dist == "t":
-            p += [8.0]
-        return p
-
-    def simulate(self, n, rng):
-        am  = arch_model(y=None, mean="AR", lags=self.ar_lags,
-                         vol="GARCH", p=self.p_vol, q=self.q_vol, dist=self.dist)
-        sim = am.simulate(params=self._params, nobs=n, burn=500)
-        return sim["data"].values
-    
-    def calibrate_params(self, mu: float, sigma: float):
-        raise NotImplementedError(self.__class__)
-
-    def _repr_params(self):
-        return (f"ar_lags={self.ar_lags}, p_vol={self.p_vol}, "
-                f"q_vol={self.q_vol}, dist={self.dist!r}")
-
+        dp = f", dist_params={self.dist_params}" if self.dist_params else ""
+        return (
+            f"omega={self.omega}, alpha={self.alpha}, beta={self.beta}, "
+            f"dist={self.dist!r}{dp}"
+        )
+ 
+ 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Outlier injection wrapper
 # ─────────────────────────────────────────────────────────────────────────────
 
 class WithOutliers(DGP):
-    """
+    """ aun no uso este, asi que no te preocupes
     Wraps any DGP and injects additive outliers.
 
     Parameters
@@ -501,5 +682,3 @@ class WithOutliers(DGP):
 
     def _repr_params(self):
         return f"{self.base!r}, fraction={self.fraction}, scale={self.scale}"
-
-

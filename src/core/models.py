@@ -20,6 +20,7 @@ import abc
 
 import numpy as np
 from scipy import stats
+from arch import arch_model
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -177,6 +178,31 @@ class AR1NonNormalModel(AvarModel):
             "exc_kurt": float(stats.kurtosis(x, fisher=True)),
             "rho": rho
         }
+    
+class GARCH11Model(AvarModel):
+    """Process with GARCH(1, 1) innovations."""
+    name        = "GARCH(1, 1)"
+    short_name  = "garch11"
+    param_names = ("omega", "alpha", "beta", "skew", "exc_kurt")
+
+    def _avar(self, sr, omega=0.05, alpha=0.08, beta=0.87, skew=0.0, exc_kurt=0.0, **kw):
+        t1 = skew / (1 - alpha - beta) 
+        t2 = (exc_kurt + 2) * (1-beta)**2 * (1+alpha+beta) / ((1 - alpha - beta) * (1 - 2*alpha*beta - beta**2) )
+        
+        return 1 - sr*t1+ sr**2/4 * t2
+        
+
+    def fit(self, x):
+        #rescale changes omega but it doesnt apper in avar
+        am = arch_model(x, mean='Constant', vol='GARCH',p=1,q=1, dist='normal', rescale=True)
+        res_fit = am.fit(update_freq=0,disp=False)
+        return {
+            "omega":res_fit.params['omega'], 
+            "alpha":res_fit.params['alpha[1]'], 
+            "beta":res_fit.params['beta[1]'], 
+            "skew": float(stats.skew(x)), 
+            "exc_kurt":float(stats.kurtosis(x, fisher=True))
+        }
 
 
 
@@ -188,6 +214,7 @@ REGISTRY: dict[str, AvarModel] = {
         IIDNonNormalModel(),
         AR1NormalModel(),
         AR1NonNormalModel(),
+        GARCH11Model(),
     ]
 }
 
