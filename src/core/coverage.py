@@ -81,12 +81,12 @@ def run_coverage_study(
             pair_rng = np.random.default_rng(dgp_rng.integers(0, 2**31))
             done += 1
             if verbose:
-                print(f"  [{done:{w}}/{total}]  DGP={dgp_name:<28}  Model={model.name:<22} ...", end=" ", flush=True)
+                print(f"  [{done:{w}}/{total}]  DGP={dgp_name:<28}  Model={model.short_name:<22} ...", end=" ", flush=True)
             res = run_pair(cdgp, model, true_sr, T, n_sim, alpha, th_moments, pair_rng)
             if verbose:
                 flag = "OK" if abs(res["coverage"] - nominal) < 0.01 else "!!"
                 print(f"cov={res['coverage']:.3f} [{flag}]")
-            rows.append({"dgp_name": dgp_name, "avar_model": model.name, "nominal_coverage": nominal, **res})
+            rows.append({"dgp_name": dgp_name, "avar_model": model.short_name, "nominal_coverage": nominal, **res})
 
     return pd.DataFrame(rows)
 

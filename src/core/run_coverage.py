@@ -23,7 +23,7 @@ import sys
 import os
 
 from core.dgp import (
-    IIDProcess, ARProcess, ConstMeanGARCHProcess, ARGARCHProcess,
+    IIDProcess, ARProcess,
     NormalInnov, StudentTInnov, GaussianMixtureInnov,
 )
 from core.models import REGISTRY
@@ -187,7 +187,8 @@ def main(cli_args=None):
         verbose       = not args.quiet,
     )
 
-    print("\n" + coverage_report(results, alpha=args.alpha, tol=args.tol))
+    if not args.quiet:
+        print("\n" + coverage_report(results, alpha=args.alpha, tol=args.tol))
     results.to_csv(out_path, index=False)
     print(f"\nRaw results saved → {out_path}")
 
