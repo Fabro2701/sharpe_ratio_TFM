@@ -24,7 +24,7 @@ import os
 
 from core.dgp import (
     IIDProcess, ARProcess,
-    NormalInnov, StudentTInnov, GaussianMixtureInnov,
+    NormalInnov, StudentTInnov, GaussianMixtureInnov, GARCHProcess
 )
 from core.models import REGISTRY
 from core.coverage import DGPSpec, run_coverage_study, coverage_report
@@ -63,12 +63,12 @@ def make_dgp_specs() -> list[DGPSpec]:
         DGPSpec(ARProcess(phi=0.6, innov=StudentTInnov(df=6)),  "ar1_phi06_t6"),
         DGPSpec(ARProcess(phi=-0.6, innov=StudentTInnov(df=6)),  "ar1_phi-06_t6"),
 
-        # # ── GARCH(1,1) ────────────────────────────────────────────────────
-        # DGPSpec(
-        #     ConstMeanGARCHProcess(
-        #         mu=0.0, omega=1-a_g-b_g, alpha=a_g, beta=b_g, dist="normal"),
-        #     "garch11_normal",
-        # ),
+        # ── GARCH(1,1) ────────────────────────────────────────────────────
+        DGPSpec(
+             GARCHProcess(
+                 mu=0.0, omega=1-a_g-b_g, alpha=a_g, beta=b_g, dist="normal"),
+             "garch11_normal",
+         ),
         # DGPSpec(
         #     ConstMeanGARCHProcess(
         #         mu=0.0, omega=1-a_g-b_g, alpha=a_g, beta=b_g,

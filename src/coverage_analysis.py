@@ -9,11 +9,13 @@ import seaborn as sns
 from core import run_coverage
 from config import RESULTS_DIR
 
+#TODO param=n
+#append mode?
 def run_coverage_setups(param_name, param_values,
                         n=10_000, alpha=0.05, 
                         dgps=["iid_normal", "iid_t5"],
                         models=["iid_normal", "iid_student_t"],
-                        th_moments=False):
+                        th_moments=False, prefix=""):
 
     for i, param in enumerate(param_values):
         print(f"{i+1} / {len(param_values)}")
@@ -21,7 +23,7 @@ def run_coverage_setups(param_name, param_values,
                 "--n_sim", str(n),
                 "--alpha", str(alpha),
                 "--seed", "42",
-                "--out", str(RESULTS_DIR / f"coverage_an_{param_name}{param}_n{n}.csv"),
+                "--out", str(RESULTS_DIR / f"{prefix}coverage_an_{param_name}{param}_n{n}.csv"),
                 "--quiet"
             ]
         if param_name=='T':
@@ -121,7 +123,7 @@ def plot_coverage_results_by_pair(df, param_name, target_val=0.95, ):
     
     # 5. Loop through the generated bars and apply hatches
     for ax in g.axes.flat:
-        ax.axhline(target_val, color='red', linestyle='--', linewidth=2, label=f'Target ({target_val})')
+        ax.axhline(target_val, color='black', linestyle='--', linewidth=2, label=f'Target ({target_val})')
         
         # Seaborn draws bars in the exact order of 'hue_order', across all 'T' values
         for i, bar in enumerate(ax.patches):
@@ -182,7 +184,7 @@ def plot_coverage_convergence(df, param_name, target_val=0.95):
     for ax in g.axes.flat:
         ax.axhline(
             target_val,
-            color='red',
+            color='black',
             linestyle='--',
             linewidth=2,
             zorder=0
