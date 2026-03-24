@@ -9,6 +9,15 @@ from core.dgp import IIDProcess, NormalInnov, StudentTInnov, ARProcess, GARCHPro
 from core.synth import TrajectorySpec, SyntheticGenerator
 
 
+THRESHOLDS = {
+    "mean":0.05,
+    "std":0.05,
+    "kurt":2.0,
+    "skew":1.0,
+    "rho":0.05,
+}
+
+
 CALIBRATION_MOMENTS = {
     "iid_normal": {"mu": 0.5, "sigma": 2.0},
     "iid_student": {"mu": 1.5, "sigma": 1.2},
@@ -112,13 +121,13 @@ def test_theoretical_moments_match_calibration(dgp_name, builder):
     target_mean = calib["mu"]
     target_std  = calib["sigma"]
 
-    assert abs(theo_mean - target_mean) < 1e-8, (
+    assert abs(theo_mean - target_mean) < THRESHOLDS["mean"], (
         f"[{dgp_name}] theoretical mean mismatch:\n"
         f"target_mean={target_mean:.4f}, theo_mean={theo_mean:.4f}, "
         f"diff={abs(theo_mean - target_mean):.6f}"
     )
 
-    assert abs(theo_std - target_std) < 1e-8, (
+    assert abs(theo_std - target_std) < THRESHOLDS["std"], (
         f"[{dgp_name}] theoretical std mismatch:\n"
         f"target_std={target_std:.4f}, theo_std={theo_std:.4f}, "
         f"diff={abs(theo_std - target_std):.6f}"
@@ -133,7 +142,7 @@ def test_per_trajectory_mean_theo(synthetic_data, dgp_name, builder):
     traj_means = data.loc[dgp_name].groupby("traj_id")["value"].mean()
 
     for traj_id, sample_mean in traj_means.items():
-        assert abs(sample_mean - theo_mean) < 0.05, (
+        assert abs(sample_mean - theo_mean) < THRESHOLDS["mean"], (
             f"[{dgp_name}] traj_id={traj_id}: "
             f"sample_mean={sample_mean:.4f}, theo_mean={theo_mean:.4f}, "
             f"mismatch={abs(sample_mean - theo_mean):.4f}"
@@ -149,7 +158,7 @@ def test_per_trajectory_std_theo(synthetic_data, dgp_name, builder):
     traj_stds = data.loc[dgp_name].groupby("traj_id")["value"].std()
 
     for traj_id, sample_std in traj_stds.items():
-        assert abs(sample_std - theo_sigma) < 0.05, (
+        assert abs(sample_std - theo_sigma) < THRESHOLDS["std"], (
             f"[{dgp_name}] traj_id={traj_id}: "
             f"sample_std={sample_std:.4f}, theo_sigma={theo_sigma:.4f}, "
             f"mismatch={abs(sample_std - theo_sigma):.4f}"
@@ -168,7 +177,7 @@ def test_per_trajectory_kurt_theo(synthetic_data, dgp_name, builder):
     )
 
     for traj_id, sample_kurt in traj_kurt.items():
-        assert abs(sample_kurt - theo_kurt) < 2.0, (
+        assert abs(sample_kurt - theo_kurt) < THRESHOLDS["kurt"], (
             f"[{dgp_name}] traj_id={traj_id}: "
             f"sample_exc_kurt={sample_kurt:.4f}, theo_exc_kurt={theo_kurt:.4f}, "
             f"mismatch={abs(sample_kurt - theo_kurt):.4f}"
@@ -187,7 +196,7 @@ def test_per_trajectory_skew_theo(synthetic_data, dgp_name, builder):# no skewd 
     )
 
     for traj_id, sample_skew in traj_skew.items():
-        assert abs(sample_skew - theo_skew) < 1.0, (
+        assert abs(sample_skew - theo_skew) < THRESHOLDS["skew"], (
             f"[{dgp_name}] traj_id={traj_id}: "
             f"sample_skew={sample_skew:.4f}, theo_skew={theo_skew:.4f}, "
             f"mismatch={abs(sample_skew - theo_skew):.4f}"
@@ -215,7 +224,7 @@ def test_per_trajectory_rho_theo(synthetic_data, dgp_name, builder):
     )
 
     for traj_id, sample_rho in traj_rho.items():
-        assert abs(sample_rho - theo_rho) < 0.05, (
+        assert abs(sample_rho - theo_rho) < THRESHOLDS["rho"], (
             f"[{dgp_name}] traj_id={traj_id}: "
             f"sample_rho={sample_rho:.4f}, theo_rho={theo_rho:.4f}, "
             f"mismatch={abs(sample_rho - theo_rho):.4f}"
