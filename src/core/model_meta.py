@@ -139,6 +139,20 @@ _P_NU = Parameter(
     label="ν", latex=r"\nu",
     description="Degrees of freedom  (ν > 4 for finite kurtosis)",
 )
+_P_ALPHA = Parameter(
+    name="alpha", default=0.08,
+    domain=(0.0, 0.3), domain_open=(True, True),
+    plot_range=(0.01, 0.17),
+    label="a", latex=r"\alpha",
+    description="Sensibility to vol shocks",
+)
+_P_BETA = Parameter(
+    name="beta", default=0.80,
+    domain=(0.7, 1.0), domain_open=(True, True),
+    plot_range=(0.7, 0.90),
+    label="b", latex=r"\beta",
+    description="persitence to vol shocks",
+)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Per-model metadata
@@ -156,6 +170,18 @@ _DISPLAY_META: dict[str, dict[str, Any]] = {
         "references": [
             "Lo, A. W. (2002). The Statistics of Sharpe Ratios. "
             "Financial Analysts Journal, 58(4), 36-52.",
+        ],
+    },
+    "iid_student_t": {
+        "parameters":    {"exc_kurt": _P_EXC_KURT},
+        "formula_latex": r"1 + \theta^2/2 + \frac{3\theta^2}{2(\nu-4)}",
+        "latex_name":    r"IID $t_\nu$",
+        "plot_style":    {"color": "#FB8C00", "ls": ":", "lw": 2.2},
+        "references": [
+            "Christie, S. (2005). Is the Sharpe Ratio Useful in Asset Allocation? "
+            "MAFC Research Paper No. 31.",
+            "Opdyke, J. D. (2007). Comparing Sharpe Ratios: So Where Are the "
+            "p-Values? Journal of Asset Management, 8(5), 308-336.",
         ],
     },
     "iid_nonnormal": {
@@ -182,18 +208,6 @@ _DISPLAY_META: dict[str, dict[str, Any]] = {
             "MAFC Research Paper No. 31.",
         ],
     },
-    "iid_student_t": {
-        "parameters":    {"exc_kurt": _P_EXC_KURT},
-        "formula_latex": r"1 + \theta^2/2 + \frac{3\theta^2}{2(\nu-4)}",
-        "latex_name":    r"IID $t_\nu$",
-        "plot_style":    {"color": "#FB8C00", "ls": ":", "lw": 2.2},
-        "references": [
-            "Christie, S. (2005). Is the Sharpe Ratio Useful in Asset Allocation? "
-            "MAFC Research Paper No. 31.",
-            "Opdyke, J. D. (2007). Comparing Sharpe Ratios: So Where Are the "
-            "p-Values? Journal of Asset Management, 8(5), 308-336.",
-        ],
-    },
     "ar1_nonnormal": {
         "parameters":    {"rho": _P_RHO, "skew": _P_SKEW, "exc_kurt": _P_EXC_KURT},
         "formula_latex": (
@@ -203,6 +217,22 @@ _DISPLAY_META: dict[str, dict[str, Any]] = {
         ),
         "latex_name":    r"AR(1) Non-$\mathcal{N}$",
         "plot_style":    {"color": "#8E24AA", "ls": (0, (3, 1, 1, 1)), "lw": 1.8},
+        "references": [
+            "Opdyke, J. D. (2007). Comparing Sharpe Ratios: So Where Are the "
+            "p-Values? Journal of Asset Management, 8(5), 308-336.",
+            "Christie, S. (2005). Is the Sharpe Ratio Useful in Asset Allocation? "
+            "MAFC Research Paper No. 31.",
+        ],
+    },
+    "garch11": {
+        "parameters":    {"alpha": _P_ALPHA, "beta": _P_BETA, "skew": _P_SKEW, "exc_kurt": _P_EXC_KURT},
+        "formula_latex": (
+            r"\frac{1+\rho}{1-\rho} + \frac{\theta^2}{2(1-\rho^2)}"
+            r" - \frac{\theta\gamma_1}{(1-\rho)^2}"
+            r" + \frac{\theta^2\gamma_2}{4(1-\rho^2)}"
+        ),
+        "latex_name":    r"AR(1) Non-$\mathcal{N}$",
+        "plot_style":    {"color": "#F5F830", "ls": "-", "lw": 1.8},
         "references": [
             "Opdyke, J. D. (2007). Comparing Sharpe Ratios: So Where Are the "
             "p-Values? Journal of Asset Management, 8(5), 308-336.",
