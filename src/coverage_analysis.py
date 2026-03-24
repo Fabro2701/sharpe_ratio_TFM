@@ -9,27 +9,28 @@ import seaborn as sns
 from core import run_coverage
 from config import RESULTS_DIR
 
-#TODO param=n
-#append mode?
+#TODO append mode?
 def run_coverage_setups(param_name, param_values,
-                        n=10_000, alpha=0.05, 
+                        alpha=0.05, 
                         dgps=["iid_normal", "iid_t5"],
                         models=["iid_normal", "iid_student_t"],
-                        th_moments=False, prefix=""):
+                        th_moments=False, prefix="",
+                        n_default=10_000, T_default=500, sr_default=0.5):
 
     for i, param in enumerate(param_values):
         print(f"{i+1} / {len(param_values)}")
         test_args = [
-                "--n_sim", str(n),
                 "--alpha", str(alpha),
                 "--seed", "42",
-                "--out", str(RESULTS_DIR / f"{prefix}coverage_an_{param_name}{param}_n{n}.csv"),
+                "--out", str(RESULTS_DIR / f"{prefix}coverage_an_{param_name}{param}.csv"),
                 "--quiet"
             ]
         if param_name=='T':
-            test_args.extend(["--T", str(param), "--theta", "0.5"])
+            test_args.extend(["--n_sim", str(n_default), "--T", str(param), "--theta", str(sr_default)])
         elif param_name=='sr':
-            test_args.extend(["--theta", str(param), "--T", "500"])
+            test_args.extend(["--n_sim", str(n_default), "--T", str(T_default), "--theta", str(param)])
+        elif param_name=='n_sim':
+            test_args.extend(["--n_sim", str(param), "--T", str(T_default), "--theta", str(sr_default)])
         else:
             raise ValueError(f"{param_name} not supp")
 
@@ -43,13 +44,13 @@ def run_coverage_setups(param_name, param_values,
 
 def parse_coverage_setups(param_name, param_values, 
                           dgps=None, models=None,
-                          n=10_000, prefix=""
+                          prefix=""
                           ):
     
     # 1. Read and combine the data
     all_data = []
     for param in param_values:
-        file_path = RESULTS_DIR / f"{prefix}coverage_an_{param_name}{param}_n{n}.csv"
+        file_path = RESULTS_DIR / f"{prefix}coverage_an_{param_name}{param}.csv"
         
         # Read the CSV
         df_temp = pd.read_csv(file_path)
@@ -178,7 +179,8 @@ def plot_coverage_convergence(df, param_name, target_val=0.95, title=""):
         marker="o",
         height=4.5,
         aspect=1.2,
-        errorbar=None
+        errorbar=None,
+        alpha=0.6
     )
 
     for ax in g.axes.flat:
@@ -189,7 +191,7 @@ def plot_coverage_convergence(df, param_name, target_val=0.95, title=""):
             linewidth=2,
             zorder=0
         )
-        if param_name=='T':
+        if param_name=='T' or param_name=='n_sim':
             ax.set_xscale("log")
 
     g.fig.suptitle(f"Convergence of Empirical Coverage as {param_name} Increases  {title}", y=1.05)
@@ -198,13 +200,13 @@ def plot_coverage_convergence(df, param_name, target_val=0.95, title=""):
     plt.show()
 
 
-def run_analysis(n, 
+def run_analysis(
                  param_name, param_values,
                  filtered_dgps=None, filtered_models=None,
                  target_coverage=0.95,
                  prefix="", title=""
                  ):
-    df_results = parse_coverage_setups(n=n,
+    df_results = parse_coverage_setups(
                                    dgps=filtered_dgps, models=filtered_models,
                                    param_name=param_name, param_values=param_values,
                                    prefix=prefix)

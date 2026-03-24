@@ -202,7 +202,7 @@ if __name__ == "__main__":
         "--n_sim", "10000",
         "--theta", "0.5",
         "--dgps", "iid_normal", "iid_t5", "ar1_phi06_normal", "ar1_phi06_t6",
-        "--models", "iid_normal", "iid_student_t", "iid_nonnormal", "ar1_normal", "ar1_nonnormal",
+        "--models", "iid_normal", "iid_student_t",
         #"--th_moments",
         "--seed", "42"
     ]
