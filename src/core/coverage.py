@@ -21,40 +21,73 @@ def _sr_hat(x):
     return float(x.mean() / s) if s > 1e-12 else 0.0
 
 
-def run_pair(dgp: DGP, model, true_sr, T, n_sim, alpha, th_moments, rng):
+import numpy as np
+import pandas as pd
+from scipy import stats
+
+def run_dgp_models(dgp, avar_models, true_sr, T, n_sim, alpha, th_moments, rng):
+    """
+    Simulates data for a single DGP and evaluates multiple models on the exact same paths.
+    """
     z = float(stats.norm.ppf(1.0 - alpha / 2.0))
-    sr_hats = np.empty(n_sim); ci_widths = np.empty(n_sim)
-    V_hats  = np.empty(n_sim); covered   = np.zeros(n_sim, dtype=bool)
-    for i in range(n_sim): #TODO reuse simulations? to reduce MC noise
+    n_models = len(avar_models)
+    
+    # Pre-allocate arrays
+    sr_hats   = np.empty(n_sim)
+    ci_widths = np.empty((n_sim, n_models))
+    V_hats    = np.empty((n_sim, n_models))
+    covered   = np.zeros((n_sim, n_models), dtype=bool)
+
+    # Optimization: Theoretical moments don't depend on the simulated path, 
+    # so we fetch them once before the loop.
+    th_moms = dgp.get_theo_moments() if th_moments else None
+
+    for i in range(n_sim):
+        # 1. Simulate data and calculate the Sharpe Ratio estimate ONCE
         x = dgp.simulate(T, rng)
         sr_h = _sr_hat(x)
-        if th_moments:
-            V = float(model(sr_h, **dgp.get_theo_moments()))
-        else:
-            params_h = model.fit(x)
-            V = float(model(sr_h, **params_h))
-        if not (np.isfinite(V) and V > 0):
-            print("Warning: Non-finite or non-positive variance. Using fallback.")
-            V = float(model(sr_h))
-        hw = z * np.sqrt(V / T)
         sr_hats[i] = sr_h
-        ci_widths[i] = 2*hw
-        V_hats[i] = V
-        covered[i] = bool(sr_h - hw <= true_sr <= sr_h + hw)
-    return {
-        "coverage":      float(covered.mean()),
-        "mean_sr_hat":   float(sr_hats.mean()),
-        "bias":          float(sr_hats.mean() - true_sr),
-        "rmse":          float(np.sqrt(((sr_hats - true_sr)**2).mean())),
-        "mean_ci_width": float(ci_widths.mean()),
-        "mean_V_hat":    float(V_hats.mean()),
-    }
+        
+        # 2. Evaluate every model on this same dataset
+        for j, model in enumerate(avar_models):
+            if th_moments:
+                V = float(model(sr_h, **th_moms))
+            else:
+                params_h = model.fit(x)
+                V = float(model(sr_h, **params_h))
+                
+            if not (np.isfinite(V) and V > 0):
+                print(f"Warning: Non-finite/positive variance in {model.short_name}. Using fallback.")
+                V = float(model(sr_h))
+                
+            hw = z * np.sqrt(V / T)
+            ci_widths[i, j] = 2 * hw
+            V_hats[i, j]    = V
+            covered[i, j]   = bool(sr_h - hw <= true_sr <= sr_h + hw)
 
+    # 3. Aggregate metrics
+    mean_sr_hat = float(sr_hats.mean())
+    bias        = float(mean_sr_hat - true_sr)
+    rmse        = float(np.sqrt(((sr_hats - true_sr)**2).mean()))
+
+    # Build the results dictionary mapped by model short_name
+    results = {}
+    for j, model in enumerate(avar_models):
+        results[model.short_name] = {
+            "coverage":      float(covered[:, j].mean()),
+            "mean_sr_hat":   mean_sr_hat, # Shared across models
+            "bias":          bias,        # Shared across models
+            "rmse":          rmse,        # Shared across models
+            "mean_ci_width": float(ci_widths[:, j].mean()),
+            "mean_V_hat":    float(V_hats[:, j].mean()),
+        }
+        
+    return results
 
 def run_coverage_study(
     dgp_specs, avar_models,
     target_sr=0.5, T=500, n_sim=2000, alpha=0.05,
-    th_moments = False,
+    th_moments=False,
     seed=42, verbose=True
 ):
     master_rng = np.random.default_rng(seed)
@@ -63,30 +96,40 @@ def run_coverage_study(
 
     calibrated = []
     for spec in dgp_specs:
-        #print("before: ", spec.dgp)
-        calibrate_dgp(spec.dgp, target_sr, mu = 0.15)
-        #print("after: ", spec.dgp)
+        calibrate_dgp(spec.dgp, target_sr, mu=0.15)
         calibrated.append((spec.name, spec.dgp, target_sr))
 
-    total = len(calibrated) * len(avar_models)
-    done  = 0
-    w     = len(str(total))
+    total_dgps = len(calibrated)
+    done       = 0
 
     if th_moments:
         print("Using theoretical moments")
 
     for dgp_name, cdgp, true_sr in calibrated:
         dgp_rng = np.random.default_rng(master_rng.integers(0, 2**31))
+        done += 1
+        
+        if verbose:
+            print(f"[{done}/{total_dgps}] Simulating DGP={dgp_name:<28} ...")
+            
+        # Run all simulations for this DGP
+        res_dict = run_dgp_models(cdgp, avar_models, true_sr, T, n_sim, alpha, th_moments, dgp_rng)
+        
+        # Unpack results and print formatted output for each model
         for model in avar_models:
-            pair_rng = np.random.default_rng(dgp_rng.integers(0, 2**31))
-            done += 1
-            if verbose:
-                print(f"  [{done:{w}}/{total}]  DGP={dgp_name:<28}  Model={model.short_name:<22} ...", end=" ", flush=True)
-            res = run_pair(cdgp, model, true_sr, T, n_sim, alpha, th_moments, pair_rng)
+            m_name = model.short_name
+            res = res_dict[m_name]
+            
             if verbose:
                 flag = "OK" if abs(res["coverage"] - nominal) < 0.01 else "!!"
-                print(f"cov={res['coverage']:.3f} [{flag}]")
-            rows.append({"dgp_name": dgp_name, "avar_model": model.short_name, "nominal_coverage": nominal, **res})
+                print(f"  -> Model={m_name:<22} cov={res['coverage']:.3f} [{flag}]")
+                
+            rows.append({
+                "dgp_name": dgp_name, 
+                "avar_model": m_name, 
+                "nominal_coverage": nominal, 
+                **res
+            })
 
     return pd.DataFrame(rows)
 
