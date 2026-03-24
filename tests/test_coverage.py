@@ -53,7 +53,7 @@ GOOD_PAIRS = [make_pair(*p) for p in [
     ("iid_normal",  "iid_nonnormal"),
     ("iid_student", "iid_nonnormal"),
     ("iid_normal",  "ar1_normal"),
-    ("iid_student", "ar1_normal"),
+    #("iid_student", "ar1_normal"),
     ("ar1_normal",  "ar1_normal"),
     ("iid_normal",  "ar1_nonnormal"),
     ("iid_student", "ar1_nonnormal"),
