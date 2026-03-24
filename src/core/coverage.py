@@ -20,11 +20,6 @@ def _sr_hat(x):
     s = float(x.std(ddof=1))
     return float(x.mean() / s) if s > 1e-12 else 0.0
 
-
-import numpy as np
-import pandas as pd
-from scipy import stats
-
 def run_dgp_models(dgp, avar_models, true_sr, T, n_sim, alpha, th_moments, rng):
     """
     Simulates data for a single DGP and evaluates multiple models on the exact same paths.

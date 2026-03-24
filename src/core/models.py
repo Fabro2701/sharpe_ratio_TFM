@@ -244,9 +244,10 @@ def get_model(key: str) -> AvarModel:
 
 #: All built-in model instances in display order.
 MODEL_CLASSES: list[AvarModel] = [
-    IIDNormalModel(),
-    IIDNonNormalModel(),
-    AR1NormalModel(),
-    IIDStudentTModel(),
-    AR1NonNormalModel(),
+        IIDNormalModel(),
+        IIDStudentTModel(),
+        IIDNonNormalModel(),
+        AR1NormalModel(),
+        AR1NonNormalModel(),
+        GARCH11Model(),
 ]
