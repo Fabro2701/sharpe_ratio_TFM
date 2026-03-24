@@ -43,13 +43,13 @@ def run_coverage_setups(param_name, param_values,
 
 def parse_coverage_setups(param_name, param_values, 
                           dgps=None, models=None,
-                          n=10_000,
+                          n=10_000, prefix=""
                           ):
     
     # 1. Read and combine the data
     all_data = []
     for param in param_values:
-        file_path = RESULTS_DIR / f"coverage_an_{param_name}{param}_n{n}.csv"
+        file_path = RESULTS_DIR / f"{prefix}coverage_an_{param_name}{param}_n{n}.csv"
         
         # Read the CSV
         df_temp = pd.read_csv(file_path)
@@ -74,7 +74,7 @@ def parse_coverage_setups(param_name, param_values,
 
 
 
-def plot_coverage_results_by_pair(df, param_name, target_val=0.95, ):
+def plot_coverage_results_by_pair(df, param_name, target_val=0.95, title=""):
     """
     Plots coverage vs. param_name.
     Same avar_model gets the same base color.
@@ -150,14 +150,14 @@ def plot_coverage_results_by_pair(df, param_name, target_val=0.95, ):
                 handle.set_linewidth(0.5)
 
     # Formatting
-    g.fig.suptitle(f"Empirical Coverage vs. {param_name} (Grouped by Model & DGP)", y=1.05)
+    g.fig.suptitle(f"Empirical Coverage vs. {param_name} {title}", y=1.05)
     g.set_axis_labels(param_name, "Empirical Coverage")
     
     plt.show()
 
 
 
-def plot_coverage_convergence(df, param_name, target_val=0.95):
+def plot_coverage_convergence(df, param_name, target_val=0.95, title=""):
     """
     Plots a line chart showing the convergence of empirical coverage 
     as trajectory length (T) increases.
@@ -192,8 +192,22 @@ def plot_coverage_convergence(df, param_name, target_val=0.95):
         if param_name=='T':
             ax.set_xscale("log")
 
-    g.fig.suptitle(f"Convergence of Empirical Coverage as {param_name} Increases", y=1.05)
+    g.fig.suptitle(f"Convergence of Empirical Coverage as {param_name} Increases  {title}", y=1.05)
     g.set_axis_labels(param_name, "Empirical Coverage")
 
     plt.show()
 
+
+def run_analysis(n, 
+                 param_name, param_values,
+                 filtered_dgps=None, filtered_models=None,
+                 target_coverage=0.95,
+                 prefix="", title=""
+                 ):
+    df_results = parse_coverage_setups(n=n,
+                                   dgps=filtered_dgps, models=filtered_models,
+                                   param_name=param_name, param_values=param_values,
+                                   prefix=prefix)
+    
+    plot_coverage_results_by_pair(df_results, param_name=param_name, target_val=target_coverage, title=title)
+    plot_coverage_convergence(df_results, param_name=param_name, target_val=target_coverage, title=title)
