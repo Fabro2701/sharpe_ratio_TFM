@@ -122,6 +122,7 @@ def parse_args(args=None):
                    help="Suppress per-cell progress output")
     p.add_argument("--th_moments",  action="store_true",
                    help="Use theoretical moments")
+    p.add_argument("--n_jobs",        type=int,   default=1)
     return p.parse_args(args)
 
 
@@ -185,6 +186,7 @@ def main(cli_args=None):
         th_moments    = args.th_moments,
         seed          = args.seed,
         verbose       = not args.quiet,
+        n_jobs        = args.n_jobs
     )
 
     if not args.quiet:

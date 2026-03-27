@@ -1,6 +1,9 @@
 from __future__ import annotations
 import warnings
 from dataclasses import dataclass
+from joblib import Parallel, delayed
+
+
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -20,70 +23,96 @@ def _sr_hat(x):
     s = float(x.std(ddof=1))
     return float(x.mean() / s) if s > 1e-12 else 0.0
 
-def run_dgp_models(dgp, avar_models, true_sr, T, n_sim, alpha, th_moments, rng):
+def _run_single_sim(seed, dgp, avar_models, T, true_sr, z, th_moments, th_moms):
+    """
+    Runs a single simulation path and evaluates all models on it.
+    Returns (sr_hat, ci_widths_row, V_hats_row, covered_row).
+    """
+    rng  = np.random.default_rng(seed)
+    x    = dgp.simulate(T, rng)
+    sr_h = _sr_hat(x)
+
+    n_models   = len(avar_models)
+    ci_widths_row = np.empty(n_models)
+    V_hats_row    = np.empty(n_models)
+    covered_row   = np.zeros(n_models, dtype=bool)
+
+    for j, model in enumerate(avar_models):
+        if th_moments:
+            V = float(model(sr_h, **th_moms))
+        else:
+            params_h = model.fit(x)
+            V = float(model(sr_h, **params_h))
+
+        if not (np.isfinite(V) and V > 0):
+            print(f"Warning: Non-finite/positive variance in {model.short_name}. Using fallback.")
+            V = float(model(sr_h))
+
+        hw = z * np.sqrt(V / T)
+        ci_widths_row[j] = 2 * hw
+        V_hats_row[j]    = V
+        covered_row[j]   = bool(sr_h - hw <= true_sr <= sr_h + hw)
+
+    return sr_h, ci_widths_row, V_hats_row, covered_row
+
+# ---------------------------------------------------------------------------
+# Orchestrator: parallel over n_sim
+# ---------------------------------------------------------------------------
+def run_dgp_models(dgp, avar_models, true_sr, T, n_sim, alpha, th_moments, rng, n_jobs=1):
     """
     Simulates data for a single DGP and evaluates multiple models on the exact same paths.
     """
-    z = float(stats.norm.ppf(1.0 - alpha / 2.0))
-    n_models = len(avar_models)
-    
-    # Pre-allocate arrays
+    z       = float(stats.norm.ppf(1.0 - alpha / 2.0))
+    th_moms = dgp.get_theo_moments() if th_moments else None
+
+    # Draw all seeds upfront — fully reproducible regardless of n_jobs
+    seeds = rng.integers(0, 2**31, size=n_sim)
+
+    # Dispatch
+    results_list = Parallel(n_jobs=n_jobs, backend="loky")(
+        delayed(_run_single_sim)(
+            int(seeds[i]), dgp, avar_models, T, true_sr, z, th_moments, th_moms
+        )
+        for i in range(n_sim)
+    )
+
+    # Reassemble pre-allocated arrays from list of tuples
     sr_hats   = np.empty(n_sim)
+    n_models  = len(avar_models)
     ci_widths = np.empty((n_sim, n_models))
     V_hats    = np.empty((n_sim, n_models))
     covered   = np.zeros((n_sim, n_models), dtype=bool)
 
-    # Optimization: Theoretical moments don't depend on the simulated path, 
-    # so we fetch them once before the loop.
-    th_moms = dgp.get_theo_moments() if th_moments else None
+    for i, (sr_h, cw, vh, cov) in enumerate(results_list):
+        sr_hats[i]      = sr_h
+        ci_widths[i, :] = cw
+        V_hats[i, :]    = vh
+        covered[i, :]   = cov
 
-    for i in range(n_sim):
-        # 1. Simulate data and calculate the Sharpe Ratio estimate ONCE
-        x = dgp.simulate(T, rng)
-        sr_h = _sr_hat(x)
-        sr_hats[i] = sr_h
-        
-        # 2. Evaluate every model on this same dataset
-        for j, model in enumerate(avar_models):
-            if th_moments:
-                V = float(model(sr_h, **th_moms))
-            else:
-                params_h = model.fit(x)
-                V = float(model(sr_h, **params_h))
-                
-            if not (np.isfinite(V) and V > 0):
-                print(f"Warning: Non-finite/positive variance in {model.short_name}. Using fallback.")
-                V = float(model(sr_h))
-                
-            hw = z * np.sqrt(V / T)
-            ci_widths[i, j] = 2 * hw
-            V_hats[i, j]    = V
-            covered[i, j]   = bool(sr_h - hw <= true_sr <= sr_h + hw)
-
-    # 3. Aggregate metrics
+    # Aggregate
     mean_sr_hat = float(sr_hats.mean())
     bias        = float(mean_sr_hat - true_sr)
-    rmse        = float(np.sqrt(((sr_hats - true_sr)**2).mean()))
+    rmse        = float(np.sqrt(((sr_hats - true_sr) ** 2).mean()))
 
-    # Build the results dictionary mapped by model short_name
     results = {}
     for j, model in enumerate(avar_models):
         results[model.short_name] = {
             "coverage":      float(covered[:, j].mean()),
-            "mean_sr_hat":   mean_sr_hat, # Shared across models
-            "bias":          bias,        # Shared across models
-            "rmse":          rmse,        # Shared across models
+            "mean_sr_hat":   mean_sr_hat,
+            "bias":          bias,
+            "rmse":          rmse,
             "mean_ci_width": float(ci_widths[:, j].mean()),
             "mean_V_hat":    float(V_hats[:, j].mean()),
         }
-        
+
     return results
 
 def run_coverage_study(
     dgp_specs, avar_models,
     target_sr=0.5, T=500, n_sim=2000, alpha=0.05,
     th_moments=False,
-    seed=42, verbose=True
+    seed=42, verbose=True,
+    n_jobs=1,
 ):
     master_rng = np.random.default_rng(seed)
     nominal    = 1.0 - alpha
@@ -108,7 +137,9 @@ def run_coverage_study(
             print(f"[{done}/{total_dgps}] Simulating DGP={dgp_name:<28} ...")
             
         # Run all simulations for this DGP
-        res_dict = run_dgp_models(cdgp, avar_models, true_sr, T, n_sim, alpha, th_moments, dgp_rng)
+        res_dict = run_dgp_models(cdgp, avar_models, true_sr, T, n_sim, 
+                                  alpha, th_moments, dgp_rng,
+                                  n_jobs)
         
         # Unpack results and print formatted output for each model
         for model in avar_models:

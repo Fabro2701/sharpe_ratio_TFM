@@ -15,7 +15,8 @@ def run_coverage_setups(param_name, param_values,
                         dgps=["iid_normal", "iid_t5"],
                         models=["iid_normal", "iid_student_t"],
                         th_moments=False, prefix="",
-                        n_default=10_000, T_default=500, sr_default=0.5):
+                        n_default=10_000, T_default=500, sr_default=0.5,
+                        n_jobs=1):
 
     for i, param in enumerate(param_values):
         print(f"{i+1} / {len(param_values)}")
@@ -38,6 +39,9 @@ def run_coverage_setups(param_name, param_values,
         test_args.extend(["--models"] + models)
         if th_moments:
             test_args.append("--th_moments")
+
+        
+        test_args.extend(["--n_jobs", str(n_jobs)])
 
         run_coverage.main(test_args)
 
