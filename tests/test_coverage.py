@@ -19,7 +19,7 @@ ALPHA = 0.05
 TARGET_COVERAGE = 1.0 - ALPHA
 THRESHOLD = 0.01
 T = 500
-N_SIM = 2000
+N_SIM = 10000
 TARGET_SR = 0.5
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -83,6 +83,7 @@ def _run_single(dgp_spec: DGPSpec, model, seed: int = 42) -> float:
         th_moments=False,
         seed=seed,
         verbose=False,
+        n_jobs=8
     )
     return res.coverage[0]
 

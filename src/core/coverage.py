@@ -65,16 +65,22 @@ def run_dgp_models(dgp, avar_models, true_sr, T, n_sim, alpha, th_moments, rng, 
     z       = float(stats.norm.ppf(1.0 - alpha / 2.0))
     th_moms = dgp.get_theo_moments() if th_moments else None
 
-    # Draw all seeds upfront — fully reproducible regardless of n_jobs
-    seeds = rng.integers(0, 2**31, size=n_sim)
-
     # Dispatch
-    results_list = Parallel(n_jobs=n_jobs, backend="loky")(
-        delayed(_run_single_sim)(
-            int(seeds[i]), dgp, avar_models, T, true_sr, z, th_moments, th_moms
+    if n_jobs == 1:
+        results_list = [
+            _run_single_sim(rng, dgp, avar_models, T, true_sr, z, th_moments, th_moms)
+            for _ in range(n_sim)
+        ]
+    else:
+        # Draw all seeds upfront — fully reproducible regardless of n_jobs
+        seeds    = rng.integers(0, 2**31, size=n_sim)
+
+        results_list = Parallel(n_jobs=n_jobs, backend="loky")(
+            delayed(_run_single_sim)(
+                seeds[i], dgp, avar_models, T, true_sr, z, th_moments, th_moms
+            )
+            for i in range(n_sim)
         )
-        for i in range(n_sim)
-    )
 
     # Reassemble pre-allocated arrays from list of tuples
     sr_hats   = np.empty(n_sim)
