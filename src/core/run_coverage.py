@@ -48,8 +48,8 @@ def make_dgp_specs() -> list[DGPSpec]:
     return [
         # ── IID families ─────────────────────────────────────────────────
         DGPSpec(IIDProcess(NormalInnov()), "iid_normal"),
-        DGPSpec(IIDProcess(StudentTInnov(df=10)), "iid_t10"),
-        DGPSpec(IIDProcess(StudentTInnov(df=5)), "iid_t5"),
+        DGPSpec(IIDProcess(StudentTInnov(df=3)), "iid_t3"),
+        DGPSpec(IIDProcess(StudentTInnov(df=6)), "iid_t5"),
         #DGPSpec(
         #    IIDProcess(GaussianMixtureInnov([-2, 2], [1, 1])),
         #    "iid_gmix",
@@ -201,7 +201,7 @@ if __name__ == "__main__":
         "--T", "500",
         "--n_sim", "10000",
         "--theta", "0.5",
-        "--dgps", "iid_normal", "iid_t5", "ar1_phi06_normal", "ar1_phi06_t6",
+        "--dgps", "iid_normal", "iid_t5",
         "--models", "iid_normal", "iid_student_t",
         #"--th_moments",
         "--seed", "42"
