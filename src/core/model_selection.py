@@ -1,4 +1,6 @@
 """
+model_selection.py
+
 Time Series Model Selection API
 ================================
 Runs a battery of diagnostic tests on each series and ranks a list of candidate
@@ -437,7 +439,6 @@ class AR1GARCH11SkewStudent(BaseModel):
 def evaluate_models(
     series_list: list[np.ndarray],
     model_list: list[BaseModel],
-    alpha: float = 0.05,
 ) -> list[SeriesReport]:
     """
     Evaluate a battery of diagnostic tests and fit a set of models to each
@@ -593,6 +594,7 @@ if __name__ == "__main__":
     ]
 
     reports = evaluate_models([s0, s1, s2], models)
+    #print(diagnostics_table(reports))
 
     print("=" * 60)
     print("GOODNESS-OF-FIT TABLE (sorted by BIC within each series)")
@@ -602,8 +604,9 @@ if __name__ == "__main__":
     print("\n" + "=" * 60)
     print("BEST MODELS")
     print("=" * 60)
+    alpha = 0.05
     for rep in reports:
-        flags = rep.diagnostics.flags()
+        flags = rep.diagnostics.flags(alpha)
         active = [k for k, v in flags.items() if v]
         print(
             f"Series {rep.series_index} (n={rep.n_obs}): "

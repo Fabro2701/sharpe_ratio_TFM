@@ -40,8 +40,6 @@ def _parse_ci(ci_str: str) -> tuple[float, float] | None:
     """
     Parse "[lower, upper]" back to floats.
 
-    BUG FIX 4: split on ", " (comma-space) rather than bare "," so that
-    negative lower bounds (e.g. "[-1.2345, -0.0010]") are handled correctly.
     """
     if ci_str in ("NaN", "Error", ""):
         return None
@@ -94,7 +92,7 @@ def build_summary_table(
 
         # --- confidence intervals ----------------------------------------
         for amodel in avar_models:
-            col_name = _avar_col_name(amodel)   # BUG FIX 1: always class name
+            col_name = _avar_col_name(amodel)  
 
             try:
                 params_h = amodel.fit(x)
@@ -157,8 +155,7 @@ def plot_sr_intervals(
         sr_point    = row["SR"]
         best_fit    = row["Best_Fit_BIC"]
 
-        # BUG FIX 2: use "is None" so an explicit empty-string override is
-        # respected rather than silently falling through to the map.
+        
         target_model = manual_overrides.get(series_name)   # None if absent
         if target_model is None and best_fit in fit_to_avar_map:
             target_model = fit_to_avar_map[best_fit]
@@ -167,14 +164,14 @@ def plot_sr_intervals(
 
         y_ticks:  list[int]   = []
         y_labels: list[str]   = []
-        y_counter = 0   # BUG FIX 3: independent counter so positions are
-                        # always contiguous even when CIs are skipped.
+        y_counter = 0   
+
 
         for col in ci_cols:
             model_name = col.removeprefix("CI_")
             ci_str     = row[col]
 
-            parsed = _parse_ci(ci_str)   # BUG FIX 4: robust parser
+            parsed = _parse_ci(ci_str)   
             if parsed is None:
                 continue
 
@@ -185,8 +182,7 @@ def plot_sr_intervals(
             y_ticks.append(y_pos)
             y_labels.append(model_name)
 
-            # BUG FIX 1 (continued): model_name is now always the class name,
-            # matching the values stored in fit_to_avar_map.
+
             is_highlight = (model_name == target_model)
             color   = "#D32F2F" if is_highlight else "#1976D2"
             lw      = 3         if is_highlight else 1.5
@@ -215,6 +211,7 @@ def plot_sr_intervals(
         ax.set_title(title)
 
         ax.axvline(sr_point, color="gray", linestyle="--", alpha=0.5, zorder=1)
+        ax.axvline(0.0, color="red", linestyle="--", alpha=0.5, zorder=1)
 
         if target_model:
             ax.plot([], [], color="#D32F2F", lw=3, label=f"Selected: {target_model}")
