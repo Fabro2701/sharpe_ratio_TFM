@@ -28,6 +28,7 @@ def _run_single_sim(seed, dgp, avar_models, T, true_sr, z, th_moments, th_moms):
     Runs a single simulation path and evaluates all models on it.
     Returns (sr_hat, ci_widths_row, V_hats_row, covered_row).
     """
+
     rng  = np.random.default_rng(seed)
     x    = dgp.simulate(T, rng)
     sr_h = _sr_hat(x)
@@ -73,13 +74,14 @@ def run_dgp_models(dgp, avar_models, true_sr, T, n_sim, alpha, th_moments, rng, 
         ]
     else:
         # Draw all seeds upfront — fully reproducible regardless of n_jobs
-        seeds    = rng.integers(0, 2**31, size=n_sim)
+        ss       = np.random.SeedSequence(rng.integers(0, 2**63))
+        children = ss.spawn(n_sim)
 
         results_list = Parallel(n_jobs=n_jobs, backend="loky")(
             delayed(_run_single_sim)(
-                seeds[i], dgp, avar_models, T, true_sr, z, th_moments, th_moms
+                child, dgp, avar_models, T, true_sr, z, th_moments, th_moms
             )
-            for i in range(n_sim)
+            for i, child in enumerate(children)
         )
 
     # Reassemble pre-allocated arrays from list of tuples
@@ -94,6 +96,11 @@ def run_dgp_models(dgp, avar_models, true_sr, T, n_sim, alpha, th_moments, rng, 
         ci_widths[i, :] = cw
         V_hats[i, :]    = vh
         covered[i, :]   = cov
+
+    unique_sr = len(np.unique(sr_hats))
+    if unique_sr < n_sim:
+        print(f"CRITICAL: Found {n_sim - unique_sr} duplicate simulations! "
+            f"Your parallel workers are overlapping.")
 
     # Aggregate
     mean_sr_hat = float(sr_hats.mean())

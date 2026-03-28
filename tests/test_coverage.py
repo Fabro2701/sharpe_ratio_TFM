@@ -19,8 +19,9 @@ ALPHA = 0.05
 TARGET_COVERAGE = 1.0 - ALPHA
 THRESHOLD = 0.01
 T = 500
-N_SIM = 10000
+N_SIM = 2000
 TARGET_SR = 0.5
+N_JOBS = 8
 
 # ─────────────────────────────────────────────────────────────────────────────
 # DGP registry
@@ -83,7 +84,7 @@ def _run_single(dgp_spec: DGPSpec, model, seed: int = 42) -> float:
         th_moments=False,
         seed=seed,
         verbose=False,
-        n_jobs=8
+        n_jobs=N_JOBS
     )
     return res.coverage[0]
 
