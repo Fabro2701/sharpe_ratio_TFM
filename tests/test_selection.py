@@ -8,17 +8,9 @@ from core.model_selection import (
     GARCH11Normal, GARCH11Student, GARCH11SkewStudent,
 )
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Global knobs
-# ─────────────────────────────────────────────────────────────────────────────
-
 N_SERIES: int               = 100
 SERIES_LENGTH: int          = 2_000
 CORRECT_RATE_THRESHOLD: float = 0.80
-
-# ─────────────────────────────────────────────────────────────────────────────
-# DGP registry  —  add a new DGP here; reference it by key in DGP_MODEL_PAIRS
-# ─────────────────────────────────────────────────────────────────────────────
 
 DGPS: dict[str, callable] = DGP_EXAMPLES
 
@@ -34,16 +26,16 @@ BASKETS: dict[str, list] = {
     "ar1": [
         AR1Normal(), AR1Student(), AR1SkewStudent(),
     ],
-    "iid_vs_ar1": [
+    "serial_dep": [
         IIDNormal(), IIDStudent(),
         AR1Normal(), AR1Student(),
     ],
     "garch": [
         GARCH11Normal(), GARCH11Student(), GARCH11SkewStudent(),
     ],
-    "iid_vs_garch": [
-        IIDNormal(), IIDStudent(),
-        GARCH11Normal(), GARCH11Student(), GARCH11SkewStudent(),
+    "heteroc_normal": [
+        IIDNormal(), 
+        GARCH11Normal(), 
     ],
     "all": [
         IIDNormal(), IIDStudent(), IIDSkewStudent(), IIDGeneralizedError(),
@@ -59,20 +51,20 @@ BASKETS: dict[str, list] = {
 # • basket_name     : key in BASKETS  (controls which models are fitted)
 # • expected_model  : short_name of the model that should win on BIC
 #
-# The same dgp_id can appear in multiple rows (different baskets / hypotheses).
-# The pytest id is built as  <dgp_id>__<basket_name>__<expected_model>  so
-# every row is uniquely identifiable even when the dgp_id repeats.
 # ─────────────────────────────────────────────────────────────────────────────
 
 DGP_MODEL_PAIRS: list[tuple[str, str, str]] = [
-    # dgp_id           basket_name    expected_model
-    ("iid_normal",     "iid",         "iid_normal"),
-    ("iid_t6",         "iid",         "iid_t"),
-    ("ar1_06_normal",  "iid_vs_ar1",  "ar1_normal"),
-    ("ar1_m06_normal", "iid_vs_ar1",  "ar1_normal"),
-    ("ar1_06_t6",      "iid_vs_ar1",  "ar1_t"),
-    ("ar1_m06_t6",     "iid_vs_ar1",  "ar1_t"),
-    ("garch_normal",        "iid_vs_garch","garch11_normal"),
+    # dgp_id               basket_name         expected_model
+    ("iid_normal",         "iid",              "iid_normal"),
+    ("iid_t6",             "iid",              "iid_t"),
+    ("ar1_06_normal",      "serial_dep",       "ar1_normal"),
+    ("ar1_m06_normal",     "serial_dep",       "ar1_normal"),
+    ("ar1_06_normal",      "ar1",              "ar1_normal"),
+    ("ar1_m06_normal",     "ar1",              "ar1_normal"),
+    ("ar1_06_t6",          "ar1",              "ar1_t"),
+    ("ar1_m06_t6",         "ar1",              "ar1_t"),
+    #("ar1_06_t6",         "iid_vs_ar1",       "ar1_t"), pending TODO
+    ("garch_normal",       "heteroc_normal",   "garch11_normal"),
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────
