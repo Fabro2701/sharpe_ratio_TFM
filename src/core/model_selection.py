@@ -257,12 +257,12 @@ class BaseModel(ABC):
     short_name: str = "base"
 
     @abstractmethod
-    def _build(self, x: np.ndarray):
+    def _build(self, x: np.ndarray, rescale=False):
         """Return an arch univariate mean-model ready to call .fit() on."""
 
-    def fit(self, x: np.ndarray) -> "FitResult":
+    def fit(self, x: np.ndarray, rescale=False) -> "FitResult":
         x = np.asarray(x, dtype=float)
-        model = self._build(x)
+        model = self._build(x, rescale)
         res = model.fit(disp="off", show_warning=False)
         return FitResult(
             model_name=self.short_name,
@@ -281,8 +281,8 @@ class IIDNormal(BaseModel):
     """x_t = μ + σ·z_t,  z_t ~ N(0,1)  iid   [k=2: μ, σ]"""
     short_name = "iid_normal"
 
-    def _build(self, x):
-        m = ConstantMean(x)
+    def _build(self, x, rescale=False):
+        m = ConstantMean(x, rescale=rescale)
         m.volatility = ConstantVariance()
         m.distribution = Normal()
         return m
@@ -292,8 +292,8 @@ class IIDStudent(BaseModel):
     """x_t = μ + σ·z_t,  z_t ~ t(ν)  iid   [k=3: μ, σ, ν]"""
     short_name = "iid_t"
 
-    def _build(self, x):
-        m = ConstantMean(x)
+    def _build(self, x, rescale=False):
+        m = ConstantMean(x, rescale=rescale)
         m.volatility = ConstantVariance()
         m.distribution = StudentsT()
         return m
@@ -307,8 +307,8 @@ class IIDSkewStudent(BaseModel):
     """
     short_name = "iid_skew_t"
 
-    def _build(self, x):
-        m = ConstantMean(x)
+    def _build(self, x, rescale=False):
+        m = ConstantMean(x, rescale=rescale)
         m.volatility = ConstantVariance()
         m.distribution = SkewStudent()
         return m
@@ -321,8 +321,8 @@ class IIDGeneralizedError(BaseModel):
     """
     short_name = "iid_ged"
 
-    def _build(self, x):
-        m = ConstantMean(x)
+    def _build(self, x, rescale=False):
+        m = ConstantMean(x, rescale=rescale)
         m.volatility = ConstantVariance()
         m.distribution = GeneralizedError()
         return m
@@ -334,8 +334,8 @@ class AR1Normal(BaseModel):
     """x_t = μ + φ·x_{t-1} + σ·z_t,  z_t ~ N(0,1)   [k=3: μ, φ, σ]"""
     short_name = "ar1_normal"
 
-    def _build(self, x):
-        m = ARX(x, lags=1)
+    def _build(self, x, rescale=False):
+        m = ARX(x, lags=1, rescale=rescale)
         m.volatility = ConstantVariance()
         m.distribution = Normal()
         return m
@@ -345,8 +345,8 @@ class AR1Student(BaseModel):
     """x_t = μ + φ·x_{t-1} + σ·z_t,  z_t ~ t(ν)   [k=4: μ, φ, σ, ν]"""
     short_name = "ar1_t"
 
-    def _build(self, x):
-        m = ARX(x, lags=1)
+    def _build(self, x, rescale=False):
+        m = ARX(x, lags=1, rescale=rescale)
         m.volatility = ConstantVariance()
         m.distribution = StudentsT()
         return m
@@ -356,8 +356,8 @@ class AR1SkewStudent(BaseModel):
     """x_t = μ + φ·x_{t-1} + σ·z_t,  z_t ~ skew-t(ν,λ)   [k=5]"""
     short_name = "ar1_skew_t"
 
-    def _build(self, x):
-        m = ARX(x, lags=1)
+    def _build(self, x, rescale=False):
+        m = ARX(x, lags=1, rescale=rescale)
         m.volatility = ConstantVariance()
         m.distribution = SkewStudent()
         return m
@@ -369,8 +369,8 @@ class GARCH11Normal(BaseModel):
     """σ²_t = ω + α·ε²_{t-1} + β·σ²_{t-1},  z_t ~ N(0,1)   [k=4: μ, ω, α, β]"""
     short_name = "garch11_normal"
 
-    def _build(self, x):
-        m = ConstantMean(x)
+    def _build(self, x, rescale=False):
+        m = ConstantMean(x, rescale=rescale)
         m.volatility = GARCH(p=1, q=1)
         m.distribution = Normal()
         return m
@@ -380,8 +380,8 @@ class GARCH11Student(BaseModel):
     """GARCH(1,1) with Student-t innovations   [k=5: μ, ω, α, β, ν]"""
     short_name = "garch11_t"
 
-    def _build(self, x):
-        m = ConstantMean(x)
+    def _build(self, x, rescale=False):
+        m = ConstantMean(x, rescale=rescale)
         m.volatility = GARCH(p=1, q=1)
         m.distribution = StudentsT()
         return m
@@ -391,8 +391,8 @@ class GARCH11SkewStudent(BaseModel):
     """GARCH(1,1) with skewed-t innovations   [k=6: μ, ω, α, β, ν, λ]"""
     short_name = "garch11_skew_t"
 
-    def _build(self, x):
-        m = ConstantMean(x)
+    def _build(self, x, rescale=False):
+        m = ConstantMean(x, rescale=rescale)
         m.volatility = GARCH(p=1, q=1)
         m.distribution = SkewStudent()
         return m
@@ -404,8 +404,8 @@ class AR1GARCH11Normal(BaseModel):
     """AR(1) mean + GARCH(1,1) vol + Normal   [k=5: μ, φ, ω, α, β]"""
     short_name = "ar1_garch11_normal"
 
-    def _build(self, x):
-        m = ARX(x, lags=1)
+    def _build(self, x, rescale=False):
+        m = ARX(x, lags=1, rescale=rescale)
         m.volatility = GARCH(p=1, q=1)
         m.distribution = Normal()
         return m
@@ -415,8 +415,8 @@ class AR1GARCH11Student(BaseModel):
     """AR(1) mean + GARCH(1,1) vol + Student-t   [k=6: μ, φ, ω, α, β, ν]"""
     short_name = "ar1_garch11_t"
 
-    def _build(self, x):
-        m = ARX(x, lags=1)
+    def _build(self, x, rescale=False):
+        m = ARX(x, lags=1, rescale=rescale)
         m.volatility = GARCH(p=1, q=1)
         m.distribution = StudentsT()
         return m
@@ -425,8 +425,8 @@ class AR1GARCH11SkewStudent(BaseModel):
     """AR(1) mean + GARCH(1,1) vol + skewed-t innovations   [k=7: μ, φ, ω, α, β, ν, λ]"""
     short_name = "ar1_garch11_skew_t"
 
-    def _build(self, x):
-        m = ARX(x, lags=1)
+    def _build(self, x, rescale=False):
+        m = ARX(x, lags=1, rescale=rescale)
         m.volatility = GARCH(p=1, q=1)
         m.distribution = SkewStudent()
         return m
