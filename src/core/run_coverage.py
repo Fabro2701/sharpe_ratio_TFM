@@ -22,10 +22,7 @@ import argparse
 import sys
 import os
 
-from core.dgp import (
-    IIDProcess, ARProcess,
-    NormalInnov, StudentTInnov, GaussianMixtureInnov, GARCHProcess
-)
+from core.dgp import DGP_EXAMPLES
 from core.models import REGISTRY
 from core.coverage import DGPSpec, run_coverage_study, coverage_report
 from config import RESULTS_DIR
@@ -38,54 +35,10 @@ from config import RESULTS_DIR
 def make_dgp_specs() -> list[DGPSpec]:
     """
     Return the canonical list of DGPSpec objects.
-
-    Each DGP is passed raw (uncalibrated). CalibratedDGP inside
-    run_coverage_study shifts the mean so the unconditional SR equals
-    target_sr automatically, preserving all dynamics.
     """
-    a_g, b_g = 0.08, 0.87          # GARCH(1,1) canonical parameters
-
-    return [
-        # ── IID families ─────────────────────────────────────────────────
-        DGPSpec(IIDProcess(NormalInnov()), "iid_normal"),
-        DGPSpec(IIDProcess(StudentTInnov(df=3)), "iid_t3"),
-        DGPSpec(IIDProcess(StudentTInnov(df=6)), "iid_t5"),
-        #DGPSpec(
-        #    IIDProcess(GaussianMixtureInnov([-2, 2], [1, 1])),
-        #    "iid_gmix",
-        #),
-
-        # ── AR(1) Normal ──────────────────────────────────────────────────
-        DGPSpec(ARProcess(phi=0.6, innov=NormalInnov()),    "ar1_phi06_normal"),
-        DGPSpec(ARProcess(phi=-0.6, innov=NormalInnov()),   "ar1_phi-06_normal"),
-
-        # ── AR(1) Student-t ───────────────────────────────────────────────
-        DGPSpec(ARProcess(phi=0.6, innov=StudentTInnov(df=6)),  "ar1_phi06_t6"),
-        DGPSpec(ARProcess(phi=-0.6, innov=StudentTInnov(df=6)),  "ar1_phi-06_t6"),
-
-        # ── GARCH(1,1) ────────────────────────────────────────────────────
-        DGPSpec(
-             GARCHProcess(
-                 mu=0.0, omega=1-a_g-b_g, alpha=a_g, beta=b_g, dist="normal"),
-             "garch11_normal",
-         ),
-        # DGPSpec(
-        #     ConstMeanGARCHProcess(
-        #         mu=0.0, omega=1-a_g-b_g, alpha=a_g, beta=b_g,
-        #         dist="t", dist_params={"nu": 8}),
-        #     "garch11_t8",
-        # ),
-
-        # # ── AR(1)-GARCH(1,1) ─────────────────────────────────────────────
-        # DGPSpec(
-        #     ARGARCHProcess(
-        #         ar_lags=1, p_vol=1, q_vol=1, dist="t",
-        #         params=[0.0, 0.2, 1-a_g-b_g, a_g, b_g, 8.0]),
-        #     "ar1_garch11_t8",
-        # ),
-    ]
-
-
+    return [DGPSpec(dgp(), name) for name, dgp in DGP_EXAMPLES.items()]
+    
+    
 # ─────────────────────────────────────────────────────────────────────────────
 # CLI
 # ─────────────────────────────────────────────────────────────────────────────
@@ -201,9 +154,9 @@ if __name__ == "__main__":
         # configuración rápida de debug
     test_args = [
         "--T", "500",
-        "--n_sim", "10000",
+        "--n_sim", "1000",
         "--theta", "0.5",
-        "--dgps", "iid_normal", "iid_t5",
+        "--dgps", "iid_normal", "iid_t6",
         "--models", "iid_normal", "iid_student_t",
         #"--th_moments",
         "--seed", "42"

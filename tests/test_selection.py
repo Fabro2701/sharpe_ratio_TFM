@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from core.dgp import IIDProcess, NormalInnov, StudentTInnov, ARProcess, GARCHProcess
+from core.dgp import DGP_EXAMPLES
 from core.synth import TrajectorySpec, SyntheticGenerator
 from core.model_selection import (
     IIDNormal, IIDStudent, IIDSkewStudent, IIDGeneralizedError,
@@ -20,30 +20,7 @@ CORRECT_RATE_THRESHOLD: float = 0.80
 # DGP registry  —  add a new DGP here; reference it by key in DGP_MODEL_PAIRS
 # ─────────────────────────────────────────────────────────────────────────────
 
-DGPS: dict[str, callable] = {
-    "iid_normal": (
-        lambda: IIDProcess(NormalInnov()).calibrate_params(mu=0.5, sigma=2.0)
-    ),
-    "iid_student": (
-        lambda: IIDProcess(StudentTInnov(df=6)).calibrate_params(mu=1.5, sigma=1.2)
-    ),
-    "ar1_06_normal": (
-        lambda: ARProcess(phi=0.6, innov=NormalInnov()).calibrate_params(mu=1.5, sigma=0.4)
-    ),
-    "ar1_m06_normal": (
-        lambda: ARProcess(phi=-0.6, innov=NormalInnov()).calibrate_params(mu=1.5, sigma=0.4)
-    ),
-    "ar1_06_t": (
-        lambda: ARProcess(phi=0.6, innov=StudentTInnov(df=6)).calibrate_params(mu=1.5, sigma=0.4)
-    ),
-    "ar1_m06_t": (
-        lambda: ARProcess(phi=-0.6, innov=StudentTInnov(df=6)).calibrate_params(mu=1.5, sigma=0.4)
-    ),
-    "garch_n": (
-        lambda: GARCHProcess(mu=0.05, omega=0.05, alpha=0.10, beta=0.85,
-                             dist="normal").calibrate_params(mu=1.5, sigma=0.4)
-    ),
-}
+DGPS: dict[str, callable] = DGP_EXAMPLES
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Model baskets  —  use focused baskets to avoid convergence issues with
@@ -90,12 +67,12 @@ BASKETS: dict[str, list] = {
 DGP_MODEL_PAIRS: list[tuple[str, str, str]] = [
     # dgp_id           basket_name    expected_model
     ("iid_normal",     "iid",         "iid_normal"),
-    ("iid_student",    "iid",         "iid_t"),
+    ("iid_t6",         "iid",         "iid_t"),
     ("ar1_06_normal",  "iid_vs_ar1",  "ar1_normal"),
     ("ar1_m06_normal", "iid_vs_ar1",  "ar1_normal"),
-    ("ar1_06_t",       "iid_vs_ar1",  "ar1_t"),
-    ("ar1_m06_t",      "iid_vs_ar1",  "ar1_t"),
-    ("garch_n",        "iid_vs_garch","garch11_normal"),
+    ("ar1_06_t6",      "iid_vs_ar1",  "ar1_t"),
+    ("ar1_m06_t6",     "iid_vs_ar1",  "ar1_t"),
+    ("garch_normal",        "iid_vs_garch","garch11_normal"),
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────

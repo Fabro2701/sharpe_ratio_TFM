@@ -1,14 +1,8 @@
 import pytest
 
-from core.dgp import IIDProcess, NormalInnov, StudentTInnov, ARProcess
-from core.models import (
-    IIDNormalModel,
-    IIDStudentTModel,
-    IIDNonNormalModel,
-    AR1NormalModel,
-    AR1NonNormalModel,
-    REGISTRY,
-)
+from core.dgp import DGP_EXAMPLES
+from core.models import REGISTRY
+
 from core.coverage import run_coverage_study, DGPSpec
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -27,12 +21,7 @@ N_JOBS = 8
 # DGP registry
 # ─────────────────────────────────────────────────────────────────────────────
 
-DGP_REGISTRY: dict[str, DGPSpec] = {
-    "iid_normal":  DGPSpec(IIDProcess(NormalInnov()),                       "iid_normal"),
-    "iid_student": DGPSpec(IIDProcess(StudentTInnov(df=6)),                 "iid_student"),
-    "ar1_normal":  DGPSpec(ARProcess(phi=0.6, innov=NormalInnov()),         "ar1_normal"),
-    "ar1_student": DGPSpec(ARProcess(phi=0.6, innov=StudentTInnov(df=6)),   "ar1_student"),
-}
+DGP_REGISTRY: dict[str, DGPSpec] = {name:DGPSpec(dgp(), name) for name, dgp in DGP_EXAMPLES.items()}
 
 
 def make_pair(dgp_name: str, model_name: str) -> tuple[str, DGPSpec, object]:
@@ -50,22 +39,22 @@ def make_pair(dgp_name: str, model_name: str) -> tuple[str, DGPSpec, object]:
 GOOD_PAIRS = [make_pair(*p) for p in [
     ("iid_normal",  "iid_normal"),
     ("iid_normal",  "iid_student_t"),
-    ("iid_student", "iid_student_t"),
+    ("iid_t6", "iid_student_t"),
     ("iid_normal",  "iid_nonnormal"),
-    ("iid_student", "iid_nonnormal"),
+    ("iid_t6", "iid_nonnormal"),
     ("iid_normal",  "ar1_normal"),
-    #("iid_student", "ar1_normal"),
-    ("ar1_normal",  "ar1_normal"),
+    #("iid_t6", "ar1_normal"),
+    ("ar1_06_normal",  "ar1_normal"),
     ("iid_normal",  "ar1_nonnormal"),
-    ("iid_student", "ar1_nonnormal"),
-    ("ar1_normal",  "ar1_nonnormal"),
-    ("ar1_student", "ar1_nonnormal"),
+    ("iid_t6", "ar1_nonnormal"),
+    ("ar1_06_normal",  "ar1_nonnormal"),
+    ("ar1_06_normal", "ar1_nonnormal"),
 ]]
 
 BAD_PAIRS = [make_pair(*p) for p in [
-    ("ar1_normal",  "iid_normal"),    # AR structure ignored
-    ("ar1_student", "iid_student_t"),   # AR structure ignored
-    ("iid_student", "iid_normal"),    # heavy tails ignored
+    ("ar1_06_normal",  "iid_normal"),    # AR structure ignored
+    ("ar1_06_t6", "iid_student_t"),   # AR structure ignored
+    ("iid_t6", "iid_normal"),    # heavy tails ignored
 ]]
 
 

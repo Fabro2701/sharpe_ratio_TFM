@@ -682,3 +682,32 @@ class WithOutliers(DGP):
 
     def _repr_params(self):
         return f"{self.base!r}, fraction={self.fraction}, scale={self.scale}"
+    
+
+DGP_EXAMPLES: dict[str, callable] = {
+    "iid_normal": (
+        lambda: IIDProcess(NormalInnov()).calibrate_params(mu=0.5, sigma=2.0)
+    ),
+    "iid_t3": (
+        lambda: IIDProcess(StudentTInnov(df=3)).calibrate_params(mu=1.5, sigma=1.2)
+    ),
+    "iid_t6": (
+        lambda: IIDProcess(StudentTInnov(df=6)).calibrate_params(mu=1.5, sigma=1.2)
+    ),
+    "ar1_06_normal": (
+        lambda: ARProcess(phi=0.6, innov=NormalInnov()).calibrate_params(mu=1.5, sigma=0.4)
+    ),
+    "ar1_m06_normal": (
+        lambda: ARProcess(phi=-0.6, innov=NormalInnov()).calibrate_params(mu=1.5, sigma=0.4)
+    ),
+    "ar1_06_t6": (
+        lambda: ARProcess(phi=0.6, innov=StudentTInnov(df=6)).calibrate_params(mu=1.5, sigma=0.4)
+    ),
+    "ar1_m06_t6": (
+        lambda: ARProcess(phi=-0.6, innov=StudentTInnov(df=6)).calibrate_params(mu=1.5, sigma=0.4)
+    ),
+    "garch_normal": (
+        lambda: GARCHProcess(mu=0.05, omega=0.05, alpha=0.10, beta=0.85,
+                             dist="normal").calibrate_params(mu=1.5, sigma=0.4)
+    ),
+}
