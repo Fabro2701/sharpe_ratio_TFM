@@ -226,7 +226,7 @@ def run_selected_configs(experiments, alpha, selected_experiments, n_jobs=1):
         scenario, param_name, param_values, th_moments = experiments[experiment_id]
         dgps, models = scenario
         
-        prefix = experiment_id + ("theo_" if th_moments else "_")
+        prefix = "prod_" + experiment_id + ("theo_" if th_moments else "_")
         run_coverage_setups(alpha=alpha,
                             param_name=param_name, param_values=param_values,
                             dgps=dgps, models=models,
@@ -244,7 +244,7 @@ def run_analysis(experiments, alpha,
     _run_analysis(param_name=param_name, param_values=param_values,
              filtered_dgps=dgps, filtered_models=models,
              target_coverage=1-alpha,
-             prefix=experiment_name + ("theo_" if th_moments else "_"),
+             prefix="prod_" + experiment_name + ("theo_" if th_moments else "_"),
              title="(Theo moments)" if th_moments else ""
              )
     
