@@ -148,8 +148,8 @@ class StudentTInnov(InnovDist):
     
     def calculate_theo_moments(self):
         self.th_skew = 0
-        if self.df < 4:
-            print("Warning df > 4")
+        #if self.df < 4:
+        #    print("Warning df > 4")
         self.th_exc_kurt = 6/(self.df - 4) if self.df > 4 else np.inf
         self.th_rho = 0
         self.th_nu = self.df

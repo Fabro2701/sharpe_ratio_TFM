@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import abc
 
+from arch.univariate.distribution import StudentsT
 import numpy as np
 from scipy import stats
 from arch import arch_model
@@ -97,24 +98,42 @@ class IIDNormalModel(AvarModel):
     def fit(self, x):
         return {}
     
+class _CustomStudentsT(StudentsT):
+        def constraints(self):
+            # Mantenemos la matriz A igual, pero cambiamos el vector b
+            # A * theta >= b  --->  nu >= 4.01
+            return np.array([[1], [-1]]), np.array([4.01, -500.0])
+
+        def bounds(self, resids):
+            # Actualizamos la tupla de límites para el optimizador (L-BFGS-B / SLSQP)
+            return [(4.05, 500.0)]
+        
 class IIDStudentTModel(AvarModel):
     """IID Student-t(ν) returns."""
     name        = "IID Student-t"
     short_name  = "iid_student_t"
+
+
     param_names = ("exc_kurt",)
-
     def _avar(self, sr, exc_kurt=0.0, **kw):
-        #nu = np.asarray(nu, dtype=float)
-        #exc_kurt = np.where(nu > 4, 6.0 / (nu - 4.0), np.nan)
-        return 1.0 + sr**2 / 2.0 + sr**2 * exc_kurt / 4.0 # use nu to analyse
-
+        return 1.0 + sr**2 / 2.0 + sr**2 * exc_kurt / 4.0 
     def fit(self, x):
-        #nu, _mu, _sigma = stats.t.fit(x, floc=float(x.mean())) #might get nu<4 and takes forever
-        #return {"nu": nu}
-        # if we want to analyse nu, may be  in transform the empirical kurt to nu
         return {
             "exc_kurt": float(stats.kurtosis(x, fisher=True)),
         }
+    
+    # param_names = ("nu",)
+    # def _avar(self, sr, nu=8.0, **kw):
+    #     exc_kurt = 6.0 / (nu - 4.0)
+    #     return 1.0 + sr**2 / 2.0 + sr**2 * exc_kurt / 4.0
+
+    # def fit(self, x):
+    #     am = arch_model(x, mean='Constant', vol='constant', dist='t', rescale=False)
+    #     am.distribution = _CustomStudentsT()
+    #     res_fit = am.fit(update_freq=0, disp=False)
+    #     return {
+    #         "nu": res_fit.params['nu'],
+    #     }
 
 
 class IIDNonNormalModel(AvarModel):

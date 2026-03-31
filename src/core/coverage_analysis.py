@@ -46,6 +46,7 @@ def run_coverage_setups(param_name, param_values,
         run_coverage.main(test_args)
 
 
+
 def parse_coverage_setups(param_name, param_values, 
                           dgps=None, models=None,
                           prefix=""
@@ -204,12 +205,11 @@ def plot_coverage_convergence(df, param_name, target_val=0.95, title=""):
     plt.show()
 
 
-def run_analysis(
-                 param_name, param_values,
+def _run_analysis(param_name, param_values,
                  filtered_dgps=None, filtered_models=None,
                  target_coverage=0.95,
                  prefix="", title=""
-                 ):
+                ):
     df_results = parse_coverage_setups(
                                    dgps=filtered_dgps, models=filtered_models,
                                    param_name=param_name, param_values=param_values,
@@ -217,3 +217,34 @@ def run_analysis(
     
     plot_coverage_results_by_pair(df_results, param_name=param_name, target_val=target_coverage, title=title)
     plot_coverage_convergence(df_results, param_name=param_name, target_val=target_coverage, title=title)
+
+
+# presentation
+
+def run_selected_configs(experiments, alpha, selected_experiments, n_jobs=1):
+    for experiment_id in selected_experiments:
+        scenario, param_name, param_values, th_moments = experiments[experiment_id]
+        dgps, models = scenario
+        
+        prefix = experiment_id + ("theo_" if th_moments else "_")
+        run_coverage_setups(alpha=alpha,
+                            param_name=param_name, param_values=param_values,
+                            dgps=dgps, models=models,
+                            th_moments=th_moments, 
+                            prefix=prefix,
+                            n_jobs=n_jobs)
+
+
+def run_analysis(experiments, alpha,
+                 experiment_name, param_values=None,
+                ):
+    scenario, param_name, _param_values, th_moments = experiments[experiment_name]
+    dgps, models = scenario
+    param_values = param_values if param_values is not None else _param_values
+    _run_analysis(param_name=param_name, param_values=param_values,
+             filtered_dgps=dgps, filtered_models=models,
+             target_coverage=1-alpha,
+             prefix=experiment_name + ("theo_" if th_moments else "_"),
+             title="(Theo moments)" if th_moments else ""
+             )
+    
