@@ -13,13 +13,15 @@ THRESHOLDS = {
     "mean":0.05,
     "std":0.05,
     "kurt":2.0,
-    "skew":1.0,
+    "skew":0.5,
     "rho":0.05,
 }
 
 CALIBRATION_MOMENTS = {
     "iid_normal": {"mu": 0.5, "sigma": 2.0},
     "iid_t6": {"mu": 1.5, "sigma": 1.2},
+    "iid_skewt60_m05": {"mu": 1.5, "sigma": 1.2},
+    "iid_skewt6_m05": {"mu": 1.5, "sigma": 1.2},
     "ar1_06_normal": {"mu": 1.5, "sigma": 0.4},
     "ar1_m06_normal": {"mu": 1.5, "sigma": 0.4},
     "ar1_06_t6": {"mu": 1.5, "sigma": 0.4},
@@ -28,7 +30,7 @@ CALIBRATION_MOMENTS = {
 }
 
 SPEC_BUILDERS = []
-length = int(1e5)
+length = int(5e5)
 n_traj = 10
 for name, params in CALIBRATION_MOMENTS.items():
     builder = lambda name=name, p=params: TrajectorySpec(

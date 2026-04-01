@@ -39,9 +39,11 @@ def make_pair(dgp_name: str, model_name: str) -> tuple[str, DGPSpec, object]:
 GOOD_PAIRS = [make_pair(*p) for p in [
     ("iid_normal",  "iid_normal"),
     ("iid_normal",  "iid_student_t"),
-    ("iid_t6", "iid_student_t"),
+    ("iid_t6",      "iid_student_t"),
     ("iid_normal",  "iid_nonnormal"),
-    ("iid_t6", "iid_nonnormal"),
+    ("iid_t6",      "iid_nonnormal"),
+    ("iid_skewt60_m05", "iid_nonnormal"),
+    ("iid_skewt6_m05", "iid_nonnormal"),
     ("iid_normal",  "ar1_normal"),
     #("iid_t6", "ar1_normal"),
     ("ar1_06_normal",  "ar1_normal"),
@@ -52,9 +54,10 @@ GOOD_PAIRS = [make_pair(*p) for p in [
 ]]
 
 BAD_PAIRS = [make_pair(*p) for p in [
+    ("iid_t6", "iid_normal"),    # heavy tails ignored
+    ("iid_skewt60_m05", "iid_student_t"), #skew ignored
     ("ar1_06_normal",  "iid_normal"),    # AR structure ignored
     ("ar1_06_t6", "iid_student_t"),   # AR structure ignored
-    ("iid_t6", "iid_normal"),    # heavy tails ignored
 ]]
 
 

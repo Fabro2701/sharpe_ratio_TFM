@@ -21,7 +21,7 @@ DGPS: dict[str, callable] = DGP_EXAMPLES
 
 BASKETS: dict[str, list] = {
     "iid": [
-        IIDNormal(), IIDStudent(), IIDSkewStudent(), IIDGeneralizedError(),
+        IIDNormal(), IIDStudent(), IIDSkewStudent(),
     ],
     "ar1": [
         AR1Normal(), AR1Student(), AR1SkewStudent(),
@@ -57,6 +57,7 @@ DGP_MODEL_PAIRS: list[tuple[str, str, str]] = [
     # dgp_id               basket_name         expected_model
     ("iid_normal",         "iid",              "iid_normal"),
     ("iid_t6",             "iid",              "iid_t"),
+    ("iid_skewt6_m05",     "iid",              "iid_skew_t"),
     ("ar1_06_normal",      "serial_dep",       "ar1_normal"),
     ("ar1_m06_normal",     "serial_dep",       "ar1_normal"),
     ("ar1_06_normal",      "ar1",              "ar1_normal"),

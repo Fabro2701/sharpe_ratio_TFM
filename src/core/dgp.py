@@ -172,16 +172,6 @@ class SkewTInnov(InnovDist):
     Hansen constants (a, b, c).  Location/scale are then applied:
 
         X = mean + scale * raw
-
-    Default (uncalibrated): mean=0, scale=sqrt((df-2)/df) → unit variance
-    (same convention as StudentTInnov).
-
-    Sampling algorithm
-    ------------------
-    Conditional on the sign split at -a/b:
-      • prob (1+eta)/2  → draw -|T| from t(df), scale by (1-eta)
-      • prob (1-eta)/2  → draw  |T| from t(df), scale by (1+eta)
-    then apply the a/b shift to standardise.
     """
 
     def __init__(self, df: float = 5.0, eta: float = 0.0, mean: float = 0.0):
@@ -189,13 +179,8 @@ class SkewTInnov(InnovDist):
         self.eta  = eta
         self.mean = mean
         self._compute_constants()
-        # default scale: same unit-variance convention as StudentTInnov
-        self.scale = np.sqrt((df - 2) / df)
+        self.scale = 1.0
         self.calculate_theo_moments()
-
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
 
     def _compute_constants(self):
         """Pre-compute Hansen's a, b, c constants from df and eta."""
@@ -207,77 +192,47 @@ class SkewTInnov(InnovDist):
         self._b = np.sqrt(1.0 + 3.0 * eta**2 - self._a**2)
 
     def _raw_sample(self, size: int, rng: np.random.Generator) -> np.ndarray:
-        """Draw from the standardised (mean=0, var=1) Hansen skewed-t."""
-        t = rng.standard_t(self.df, size=size)
-        u = rng.uniform(0.0, 1.0, size=size)
-        left = u < (1.0 + self.eta) / 2.0
-        # left piece: -|t| scaled by (1-eta);  right: |t| scaled by (1+eta)
-        z = np.where(left, -np.abs(t) * (1.0 - self.eta),
-                            np.abs(t) * (1.0 + self.eta))
-        return (z - self._a) / self._b
-
-    # ------------------------------------------------------------------
-    # InnovDist interface
-    # ------------------------------------------------------------------
+        return SkewStudent(seed=rng).simulate([self.df, self.eta])(size)
 
     def __call__(self, size: int, rng: np.random.Generator) -> np.ndarray:
         return self.mean + self.scale * self._raw_sample(size, rng)
 
     def calibrate_params(self, mu: float, sigma: float) -> "SkewTInnov":
         self.mean  = mu
-        # raw has variance 1, so X has std = scale * sqrt(df/(df-2))
-        self.scale = sigma * np.sqrt((self.df - 2) / self.df)
+        self.scale = sigma
         self.calculate_theo_moments()
         return self
 
     def calculate_theo_moments(self):
         nu, eta = self.df, self.eta
-        # --- skewness of Hansen's skewed-t (closed-form, df > 3) ---
-        # E[raw^3] involves the third absolute moment of t(nu)
-        # m3t = E[|T|^3] for T ~ t(nu)  =  (nu-2)*sqrt(nu) * Gamma(2) / (... )
-        # Using: E[|T|^k] = nu^(k/2)*B((k+1)/2, (nu-k)/2)/B(1/2, nu/2) for k < nu
+        
+        # Unstandardized moments of Y
+        m1 = self._a
+        m2 = 1.0 + 3.0 * eta**2
+        
+        # --- Skewness (requires nu > 3) ---
         if nu > 3:
-            # E[T^2] = nu/(nu-2), E[|T|^3] via incomplete beta moments
-            # Simpler route: use the known third moment formula
-            # Skewness of raw = 2*eta*(1+eta^2)*m3 - 3*a*sigma_raw^2 ...
-            # Exact formula (Hansen 1994, eq. after (3)):
-            # skew(raw) = [-2*eta*(3*eta^2+1)*c*(nu-2)^(3/2)/(nu-1)] ... complex
-            # We approximate by Monte Carlo hint or set to non-trivial value.
-            # Simplification: for now derive numerically via moment formula.
-            # Left-piece contribution (prob p = (1+eta)/2, value z = -|T|(1-eta)):
-            #   E[z^3 | left] = -(1-eta)^3 * E[|T|^3]   (T ~ t(nu))
-            # Right-piece contribution (prob 1-p = (1-eta)/2, value z = |T|(1+eta)):
-            #   E[z^3 | right] = (1+eta)^3 * E[|T|^3]
-            # E[|T|^3] for t(nu): use gamma ratio
-            from scipy.special import gamma as gf
-            if nu > 3:
-                e_abs_t3 = (
-                    (nu / 2) ** (3 / 2)
-                    * gf(2.0)
-                    * gf((nu - 3) / 2)
-                    / (np.sqrt(np.pi) * gf(nu / 2))
-                )
-            else:
-                e_abs_t3 = np.inf
-            p = (1.0 + eta) / 2.0
-            e_z3 = p * (-(1 - eta) ** 3) * e_abs_t3 + (1 - p) * (1 + eta) ** 3 * e_abs_t3
-            e_raw3 = (e_z3 - 3 * self._a * 1.0 - self._a**3) / self._b**3  # Var(raw)=1
-            # actually raw = (z - a)/b, so E[raw^3] = (E[z^3] - 3a*E[z^2] + 3a^2*E[z] - a^3)/b^3
-            # E[z] = a  (by construction), E[z^2] = b^2 + a^2 (Var(raw)=1 => Var(z)=b^2)
-            e_z  = self._a
-            e_z2 = self._b**2 + self._a**2
-            e_raw3 = (e_z3 - 3 * self._a * e_z2 + 3 * self._a**2 * e_z - self._a**3) / self._b**3
-            self.th_skew = float(e_raw3)  # raw has unit variance, so skew = E[raw^3]
+            m3 = (16.0 * self._c * eta * (1.0 + eta**2) * (nu - 2)**2) / ((nu - 1) * (nu - 3))
+            self.th_skew = (m3 - 3*self._a*m2 + 2*self._a**3) / (self._b**3)
         else:
-            self.th_skew = np.nan  # undefined for df <= 3
+            print(f"No skewness for skewt df={nu} (needs df > 3)")
+            self.th_skew = np.nan
 
-        # excess kurtosis: same as symmetric t for the standardised version
-        # (eta shifts skewness but the excess kurtosis formula stays 6/(df-4))
-        self.th_exc_kurt = 6.0 / (nu - 4.0) if nu > 4 else np.inf
-        self.th_rho  = 0.0
-        self.th_nu   = nu
-        self.th_mean = self.mean
-        self.th_sigma = self.scale * np.sqrt(nu / (nu - 2)) if nu > 2 else np.inf
+        # --- Excess Kurtosis (requires nu > 4) ---
+        if nu > 4:
+            m4 = 3.0 * ((nu - 2) / (nu - 4)) * (1.0 + 10.0*eta**2 + 5.0*eta**4)
+            # Full kurtosis for standard variable Z = (Y-a)/b
+            kurtosis = (m4 - 4*self._a*m3 + 6*self._a**2*m2 - 3*self._a**4) / (self._b**4)
+            self.th_exc_kurt = kurtosis - 3.0 
+        else:
+            print(f"No kurtosis for skewt df={nu} (needs df > 4)")
+            self.th_exc_kurt = np.nan
+
+        self.th_rho   = 0.0
+        self.th_nu    = nu
+        self.th_mean  = self.mean
+        # The scale of the standard variable is 1, so variance of X is scale^2
+        self.th_sigma = self.scale
 
     def __repr__(self):
         return (
@@ -693,6 +648,12 @@ DGP_EXAMPLES: dict[str, callable] = {
     ),
     "iid_t6": (
         lambda: IIDProcess(StudentTInnov(df=6)).calibrate_params(mu=1.5, sigma=1.2)
+    ),
+    "iid_skewt60_m05": (
+        lambda: IIDProcess(SkewTInnov(df=60, eta=-0.5)).calibrate_params(mu=1.5, sigma=1.2)
+    ),
+    "iid_skewt6_m05": (
+        lambda: IIDProcess(SkewTInnov(df=6, eta=-0.5)).calibrate_params(mu=1.5, sigma=1.2)
     ),
     "ar1_06_normal": (
         lambda: ARProcess(phi=0.6, innov=NormalInnov()).calibrate_params(mu=1.5, sigma=0.4)
