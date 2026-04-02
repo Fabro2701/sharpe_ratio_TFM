@@ -132,6 +132,7 @@ def build_summary_table(
 # Plot
 # ---------------------------------------------------------------------------
 
+#TODO move lable so doesnt overlap data
 def plot_sr_intervals(
     df_summary: pd.DataFrame,
     fit_to_avar_map: dict[str, str] | None = None,

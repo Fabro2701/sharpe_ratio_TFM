@@ -204,7 +204,7 @@ def plot_coverage_convergence(df, param_name, target_val=0.95, title=""):
 
     plt.show()
 
-
+#TODO plot filter, bar or line or both
 def _run_analysis(param_name, param_values,
                  filtered_dgps=None, filtered_models=None,
                  target_coverage=0.95,
