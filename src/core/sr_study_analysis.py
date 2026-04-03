@@ -6,7 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from core import run_coverage
+from core import run_sr_study
 from config import RESULTS_DIR
 
 #TODO append mode?
@@ -41,9 +41,12 @@ def run_coverage_setups(param_name, param_values,
             test_args.append("--th_moments")
 
         
+        test_args.extend(["--study_type", "TWO_SIDED_COVERAGE"])
+
+        
         test_args.extend(["--n_jobs", str(n_jobs)])
 
-        run_coverage.main(test_args)
+        run_sr_study.main(test_args)
 
 
 
