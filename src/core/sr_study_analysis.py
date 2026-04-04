@@ -118,12 +118,18 @@ class ExperimentSpec:
 # DGP helper
 # ─────────────────────────────────────────────────────────────────────────────
 
+EXTRA_DGPS = {}
+def set_extra_dgps(dgps):
+    global EXTRA_DGPS
+    EXTRA_DGPS = dgps
+
 def _build_dgp_specs(names: list[str]) -> list[DGPSpec]:
-    missing = [n for n in names if n not in DGP_EXAMPLES]
+    dgps = DGP_EXAMPLES | EXTRA_DGPS
+    missing = [n for n in names if n not in dgps]
     if missing:
         raise ValueError(f"Unknown DGP name(s): {missing}. "
                          f"Available: {sorted(DGP_EXAMPLES)}")
-    return [DGPSpec(DGP_EXAMPLES[n](), n) for n in names]
+    return [DGPSpec(dgps[n](), n) for n in names]
 
 
 def _build_models(names: list[str]):
