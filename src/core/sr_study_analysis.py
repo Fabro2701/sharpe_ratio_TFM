@@ -25,6 +25,7 @@ from config import RESULTS_DIR
 # Experiment specification dataclass
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @dataclass
 class ExperimentSpec:
     """
@@ -66,7 +67,8 @@ class ExperimentSpec:
     alpha:        float                    = 0.05
     seed:         int                      = 42
     n_jobs:       int                      = 1
-
+    label_param:  str  | None              = None   # e.g. "sr" or "bias_adj"
+    label_values: list | None              = None   # e.g. [0.3, 0.5, 0.8]
     # ── convenience ──────────────────────────────────────────────────────────
 
     @property
@@ -78,11 +80,13 @@ class ExperimentSpec:
     def metric(self) -> str:
         return self.study_type.metric_name
 
-    def file_stem(self, param_value) -> str:
-        """Unique filename stem for one cell of the sweep."""
-        st_tag = self.study_type.name.lower()
-        th_tag = "theo_" if self.th_moments else ""
-        return f"{st_tag}_{th_tag}{self.param_name}{param_value}"
+    def file_stem(self, param_value, label_value=None) -> str:
+        """Unique filename stem; encodes label value when present."""
+        st_tag    = self.study_type.name.lower()
+        th_tag    = "theo_" if self.th_moments else ""
+        label_tag = (f"_{self.label_param}{label_value}"
+                     if label_value is not None else "")
+        return f"{st_tag}_{th_tag}{self.param_name}{param_value}{label_tag}"
 
     def _resolve_null_sr(self, target_sr: float) -> float:
         """
@@ -112,6 +116,21 @@ class ExperimentSpec:
                 "Use 'T', 'sr', or 'n_sim'."
             )
         return dict(T=T, n_sim=n_sim, target_sr=sr)
+    
+    def _label_kwargs(self, label_value) -> dict:
+        
+        # Maps label_param aliases → actual run_study kwarg names
+        LABEL_ALIASES = {
+            "sr": "null_sr",
+            # add more here as needed, e.g. "bias": "bias_adj"
+        }
+
+        kwarg_name = LABEL_ALIASES.get(self.label_param, self.label_param)
+        return {kwarg_name: label_value}
+
+    def _effective_label_values(self) -> list:
+        """Returns [None] when no label dimension is configured."""
+        return self.label_values if self.label_values is not None else [None]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -146,44 +165,58 @@ def _build_models(names: list[str]):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def run_setups(
-    spec:   ExperimentSpec,
-    prefix: str = "",
+    spec:    ExperimentSpec,
+    prefix:  str = "",
     out_dir: Path | None = None,
 ) -> None:
-    """
-    Run one full parameter sweep defined by *spec*, saving one CSV per value.
-
-    Calls run_study() directly instead of going through the CLI.
-    """
-    out_dir    = Path(out_dir) if out_dir is not None else RESULTS_DIR
-    dgp_specs  = _build_dgp_specs(spec.dgps)
+    out_dir     = Path(out_dir) if out_dir is not None else RESULTS_DIR
+    dgp_specs   = _build_dgp_specs(spec.dgps)
     avar_models = _build_models(spec.models)
-    total      = len(spec.param_values)
 
-    for i, param in enumerate(spec.param_values, 1):
-        print(f"  [{i}/{total}]  {spec.param_name}={param}  "
-              f"({spec.study_type.name})")
+    label_values = spec._effective_label_values()
+    total = len(spec.param_values) * len(label_values)
+    done  = 0
 
-        sim_kwargs = spec._param_kwargs(param)
-        null_sr    = spec._resolve_null_sr(sim_kwargs["target_sr"])
+    for label_val in label_values:
+        label_kwargs = spec._label_kwargs(label_val) if label_val is not None else {}
 
-        results = run_study(
-            study_type  = spec.study_type,
-            dgp_specs   = dgp_specs,
-            avar_models = avar_models,
-            null_sr     = null_sr,
-            th_moments  = spec.th_moments,
-            calib_mu    = spec.calib_mu,
-            calib_sigma = spec.calib_sigma,
-            alpha       = spec.alpha,
-            seed        = spec.seed,
-            verbose     = False,
-            n_jobs      = spec.n_jobs,
-            **sim_kwargs,
-        )
+        for param in spec.param_values:
+            done += 1
+            label_str = (f"  {spec.label_param}={label_val}" if label_val is not None else "")
+            print(f"  [{done}/{total}]  {spec.param_name}={param}{label_str}"
+                  f"  ({spec.study_type.name})")
 
-        out_path = out_dir / f"{prefix}{spec.file_stem(param)}.csv"
-        results.to_csv(out_path, index=False)
+            # merge: label_kwargs can override param_kwargs (e.g. both touch target_sr)
+            sim_kwargs   = {**spec._param_kwargs(param), **label_kwargs}
+
+            if "null_sr" in label_kwargs:
+                null_sr = label_kwargs["null_sr"]
+                sim_kwargs["target_sr"] = spec._resolve_null_sr(null_sr)
+            else:
+                null_sr = spec._resolve_null_sr(sim_kwargs["target_sr"])
+            sim_kwargs.pop("null_sr", None)
+
+            results = run_study(
+                study_type  = spec.study_type,
+                dgp_specs   = dgp_specs,
+                avar_models = avar_models,
+                null_sr     = null_sr,
+                th_moments  = spec.th_moments,
+                calib_mu    = spec.calib_mu,
+                calib_sigma = spec.calib_sigma,
+                alpha       = spec.alpha,
+                seed        = spec.seed,
+                verbose     = False,
+                n_jobs      = spec.n_jobs,
+                **sim_kwargs,
+            )
+
+            # stamp the label column so parse_setups can reconstruct it
+            if label_val is not None:
+                results[spec.label_param] = label_val
+
+            out_path = out_dir / f"{prefix}{spec.file_stem(param, label_val)}.csv"
+            results.to_csv(out_path, index=False)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -197,35 +230,33 @@ def parse_setups(
     dgps:         list[str] | None = None,
     models:       list[str] | None = None,
     param_values: list | None = None,
+    label_values: list | None = None,
 ) -> pd.DataFrame:
-    """
-    Read saved CSVs for a sweep and return a combined DataFrame.
-
-    *dgps* and *models* can narrow the loaded data to a subset.
-    *param_values* overrides spec.param_values (e.g. for partial re-analysis).
-    """
     out_dir      = Path(out_dir) if out_dir is not None else RESULTS_DIR
     param_values = param_values if param_values is not None else spec.param_values
+    label_values = label_values if label_values is not None else spec._effective_label_values()
     metric       = spec.metric
 
     all_data = []
-    for param in param_values:
-        path = out_dir / f"{prefix}{spec.file_stem(param)}.csv"
-        df   = pd.read_csv(path)
-        df[spec.param_name] = param
-        all_data.append(df)
+    for label_val in label_values:
+        for param in param_values:
+            path = out_dir / f"{prefix}{spec.file_stem(param, label_val)}.csv"
+            df   = pd.read_csv(path)
+            df[spec.param_name] = param
+            if label_val is not None and spec.label_param not in df.columns:
+                df[spec.label_param] = label_val   # back-fill if missing
+            all_data.append(df)
 
     df_all = pd.concat(all_data, ignore_index=True)
 
-    if dgps:
-        df_all = df_all[df_all["dgp_name"].isin(dgps)]
-    if models:
-        df_all = df_all[df_all["avar_model"].isin(models)]
+    if dgps:   df_all = df_all[df_all["dgp_name"].isin(dgps)]
+    if models: df_all = df_all[df_all["avar_model"].isin(models)]
 
-    # ── summary table ─────────────────────────────────────────────────────────
-    cols = [spec.param_name, "dgp_name", "avar_model", "nominal", metric,
-            "bias", "rmse"]
+    cols = [spec.param_name, "dgp_name", "avar_model", "nominal", metric, "bias", "rmse"]
+    if spec.label_param and spec.label_param in df_all.columns:
+        cols = [spec.label_param] + cols
     cols = [c for c in cols if c in df_all.columns]
+
     print(f"=== {spec.study_type.name} — {spec.param_name} sweep ===")
     print(df_all[cols].to_string(index=False))
 
@@ -237,6 +268,15 @@ def parse_setups(
 # Plotting helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _hue_column(df: pd.DataFrame, spec: ExperimentSpec) -> str:
+    """
+    When a label dimension exists and there's only one DGP+model pair,
+    use the label column as the hue; otherwise fall back to dgp_model_pair.
+    """
+    if spec.label_param and spec.label_param in df.columns:
+        return spec.label_param
+    return "dgp_model_pair"
+
 def _metric_info(study_type: StudyType, alpha: float) -> tuple[str, float, str]:
     """Return (column_name, target_line_value, y_label)."""
     if study_type.is_power:
@@ -246,67 +286,96 @@ def _metric_info(study_type: StudyType, alpha: float) -> tuple[str, float, str]:
 
 
 def plot_results_by_pair(
-    df:          pd.DataFrame,
-    spec:        ExperimentSpec,
-    alpha:       float = 0.05,
-    title:       str   = "",
+    df:    pd.DataFrame,
+    spec:  ExperimentSpec,
+    alpha: float = 0.05,
+    title: str   = "",
 ):
     """
     Bar chart of coverage or power vs. the swept parameter.
-    Color = avar_model, hatch = dgp_name.
+
+    When spec.label_param is set (and there is a single DGP+model pair),
+    color = label_param values.  Otherwise: color = avar_model, hatch = dgp_name.
     """
     metric, target_val, y_label = _metric_info(spec.study_type, alpha)
     param_name = spec.param_name
+    hue_col    = _hue_column(df, spec)
 
     sns.set_theme(style="whitegrid")
     df = df.copy()
-    df["model_dgp"] = df["avar_model"].astype(str) + " | " + df["dgp_name"].astype(str)
+    df["dgp_model_pair"] = df["avar_model"].astype(str) + " | " + df["dgp_name"].astype(str)
 
-    models     = df["avar_model"].unique()
-    dgps       = df["dgp_name"].unique()
-    t_levels   = df[param_name].unique()
+    t_levels = sorted(df[param_name].unique())
 
-    base_colors = sns.color_palette("tab10", len(models))
-    color_map   = dict(zip(models, base_colors))
+    # ── simple path: label_param is the hue ──────────────────────────────────
+    if hue_col == spec.label_param:
+        hue_values = sorted(df[hue_col].unique(), key=str)
+        palette    = dict(zip(hue_values, sns.color_palette("tab10", len(hue_values))))
 
-    hatch_patterns = ['.', '/', 'O', '-', '*']
-    hatch_map      = dict(zip(dgps, hatch_patterns[:len(dgps)]))
+        g = sns.catplot(
+            data=df, x=param_name, y=metric,
+            hue=hue_col, palette=palette,
+            order=t_levels,
+            kind="bar", height=5, aspect=1.5, errorbar=None,
+        )
 
-    hue_order      = []
-    custom_palette = {}
-    for m in models:
-        for d in dgps:
-            combo = f"{m} | {d}"
-            hue_order.append(combo)
-            custom_palette[combo] = color_map[m]
-
-    g = sns.catplot(
-        data=df, x=param_name, y=metric,
-        hue="model_dgp", hue_order=hue_order, palette=custom_palette,
-        kind="bar", height=5, aspect=1.5, errorbar=None,
-    )
-
-    for ax in g.axes.flat:
-        if target_val is not None:
-            ax.axhline(target_val, color="black", linestyle="--",
-                       linewidth=2, label=f"Target ({target_val:.2f})")
-        for i, bar in enumerate(ax.patches):
-            hue_idx = i // len(t_levels)
-            if hue_idx < len(hue_order):
-                _, dgp_name = hue_order[hue_idx].split(" | ")
-                bar.set_hatch(hatch_map[dgp_name])
+        for ax in g.axes.flat:
+            if target_val is not None:
+                ax.axhline(target_val, color="black", linestyle="--",
+                           linewidth=2, label=f"Target ({target_val:.2f})")
+            for bar in ax.patches:
                 bar.set_edgecolor("black")
                 bar.set_linewidth(0.5)
 
-    if g.legend:
-        handles = getattr(g.legend, "legend_handles", g.legend.get_patches())
-        for handle, text in zip(handles, g.legend.texts):
-            label = text.get_text()
-            if " | " in label:
-                _, dgp_name = label.split(" | ")
-                handle.set_hatch(hatch_map[dgp_name])
-                handle.set_edgecolor("black")
-                handle.set_linewidth(0.5)
+    # ── original path: color = model, hatch = dgp ────────────────────────────
+    else:
+        df["model_dgp"] = df["avar_model"].astype(str) + " | " + df["dgp_name"].astype(str)
+
+        models = df["avar_model"].unique()
+        dgps   = df["dgp_name"].unique()
+
+        base_colors = sns.color_palette("tab10", len(models))
+        color_map   = dict(zip(models, base_colors))
+
+        hatch_patterns = ['.', '/', 'O', '-', '*']
+        hatch_map      = dict(zip(dgps, hatch_patterns[:len(dgps)]))
+
+        hue_order      = []
+        custom_palette = {}
+        for m in models:
+            for d in dgps:
+                combo = f"{m} | {d}"
+                hue_order.append(combo)
+                custom_palette[combo] = color_map[m]
+
+        g = sns.catplot(
+            data=df, x=param_name, y=metric,
+            hue="model_dgp", hue_order=hue_order, palette=custom_palette,
+            order=t_levels,
+            kind="bar", height=5, aspect=1.5, errorbar=None,
+        )
+
+        for ax in g.axes.flat:
+            if target_val is not None:
+                ax.axhline(target_val, color="black", linestyle="--",
+                           linewidth=2, label=f"Target ({target_val:.2f})")
+            for i, bar in enumerate(ax.patches):
+                hue_idx = i // len(t_levels)
+                if hue_idx < len(hue_order):
+                    _, dgp_name = hue_order[hue_idx].split(" | ")
+                    bar.set_hatch(hatch_map[dgp_name])
+                    bar.set_edgecolor("black")
+                    bar.set_linewidth(0.5)
+
+        if g.legend:
+            handles = getattr(g.legend, "legend_handles", g.legend.get_patches())
+            for handle, text in zip(handles, g.legend.texts):
+                label = text.get_text()
+                if " | " in label:
+                    _, dgp_name = label.split(" | ")
+                    handle.set_hatch(hatch_map[dgp_name])
+                    handle.set_edgecolor("black")
+                    handle.set_linewidth(0.5)
 
     g.fig.suptitle(
         f"{spec.study_type.name} — {y_label} vs. {param_name}  {title}", y=1.05
@@ -315,39 +384,26 @@ def plot_results_by_pair(
     plt.show()
 
 
-def plot_results_convergence(
-    df:        pd.DataFrame,
-    spec:      ExperimentSpec,
-    alpha:     float = 0.05,
-    title:     str   = "",
-):
-    """
-    Line chart showing how empirical coverage / power evolves as the
-    swept parameter grows.
-    Color = avar_model, marker shape = dgp_name.
-    """
+def plot_results_convergence(df, spec, alpha=0.05, title=""):
     metric, target_val, y_label = _metric_info(spec.study_type, alpha)
     param_name = spec.param_name
+    hue_col    = _hue_column(df, spec)
 
     sns.set_theme(style="whitegrid")
-
     g = sns.relplot(
         data=df, x=param_name, y=metric,
-        hue="avar_model", style="dgp_name",
+        hue=hue_col,
+        style="dgp_name" if hue_col != "dgp_name" else None,
         dashes=False, markers=True, kind="line",
         marker="o", height=4.5, aspect=1.2, errorbar=None, alpha=0.7,
     )
-
     for ax in g.axes.flat:
         if target_val is not None:
-            ax.axhline(target_val, color="black", linestyle="--",
-                       linewidth=2, zorder=0)
+            ax.axhline(target_val, color="black", linestyle="--", linewidth=2, zorder=0)
         if param_name in ("T", "n_sim"):
             ax.set_xscale("log")
 
-    g.fig.suptitle(
-        f"{spec.study_type.name} — {y_label} vs. {param_name}  {title}", y=1.05
-    )
+    g.fig.suptitle(f"{spec.study_type.name} — {y_label} vs. {param_name}  {title}", y=1.05)
     g.set_axis_labels(param_name, y_label)
     plt.show()
 
