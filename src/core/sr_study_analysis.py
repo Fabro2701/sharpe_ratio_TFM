@@ -142,13 +142,14 @@ def set_extra_dgps(dgps):
     global EXTRA_DGPS
     EXTRA_DGPS = dgps
 
-def _build_dgp_specs(names: list[str]) -> list[DGPSpec]:
-    dgps = DGP_EXAMPLES | EXTRA_DGPS
+def _build_dgp_specs(names: list[str], **kwargs) -> list[DGPSpec]:
+    #dgps = DGP_EXAMPLES | EXTRA_DGPS
+    dgps = EXTRA_DGPS
     missing = [n for n in names if n not in dgps]
     if missing:
         raise ValueError(f"Unknown DGP name(s): {missing}. "
                          f"Available: {sorted(DGP_EXAMPLES)}")
-    return [DGPSpec(dgps[n](), n) for n in names]
+    return [DGPSpec(dgps[n](**kwargs), n) for n in names] #collisions not avoided (kwargs)TODO
 
 
 def _build_models(names: list[str]):
@@ -170,7 +171,6 @@ def run_setups(
     out_dir: Path | None = None,
 ) -> None:
     out_dir     = Path(out_dir) if out_dir is not None else RESULTS_DIR
-    dgp_specs   = _build_dgp_specs(spec.dgps)
     avar_models = _build_models(spec.models)
 
     label_values = spec._effective_label_values()
@@ -179,6 +179,7 @@ def run_setups(
 
     for label_val in label_values:
         label_kwargs = spec._label_kwargs(label_val) if label_val is not None else {}
+        dgp_specs = _build_dgp_specs(spec.dgps, **label_kwargs)
 
         for param in spec.param_values:
             done += 1
@@ -231,6 +232,7 @@ def parse_setups(
     models:       list[str] | None = None,
     param_values: list | None = None,
     label_values: list | None = None,
+    print_table:  bool = True,
 ) -> pd.DataFrame:
     out_dir      = Path(out_dir) if out_dir is not None else RESULTS_DIR
     param_values = param_values if param_values is not None else spec.param_values
@@ -257,8 +259,9 @@ def parse_setups(
         cols = [spec.label_param] + cols
     cols = [c for c in cols if c in df_all.columns]
 
-    print(f"=== {spec.study_type.name} — {spec.param_name} sweep ===")
-    print(df_all[cols].to_string(index=False))
+    if print_table:
+        print(f"=== {spec.study_type.name} — {spec.param_name} sweep ===")
+        print(df_all[cols].to_string(index=False))
 
     df_all["dgp_model_pair"] = df_all["dgp_name"] + " + " + df_all["avar_model"]
     return df_all
@@ -383,7 +386,7 @@ def plot_results_by_pair(
     g.set_axis_labels(param_name, y_label)
     plt.show()
 
-
+#TODO arbitrary extra args
 def plot_results_convergence(df, spec, alpha=0.05, title="", reverse=False, log=False):
     metric, target_val, y_label = _metric_info(spec.study_type, alpha)
     param_name = spec.param_name
@@ -438,6 +441,7 @@ def run_analysis(
     param_values: list | None = None,
     prefix:       str         = "",
     out_dir:      Path | None = None,
+    plot_mask:    list = [True, True, True], # [table, bar, line]
     reverse = False, log=False
 ) -> None:
     """Load saved results for one experiment and produce both plot types."""
@@ -448,8 +452,11 @@ def run_analysis(
         prefix=prefix + experiment_name + "_",
         out_dir=out_dir,
         param_values=param_values,
+        print_table=plot_mask[0]
     )
 
     th_label = " (Theo moments)" if spec.th_moments else ""
-    plot_results_by_pair(df, spec, alpha=alpha, title=th_label)
-    plot_results_convergence(df, spec, alpha=alpha, title=th_label, reverse=reverse, log=log)
+    if plot_mask[1]:
+        plot_results_by_pair(df, spec, alpha=alpha, title=th_label)
+    if plot_mask[2]:
+        plot_results_convergence(df, spec, alpha=alpha, title=th_label, reverse=reverse, log=log)

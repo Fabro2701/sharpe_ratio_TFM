@@ -349,6 +349,7 @@ def run_study(
     avar_models2: list[AvarModel] | None = None,
     target_sr2:   float = 0.3,
     null_diff:    float = 0.0,
+    **kwargs,
 ) -> pd.DataFrame:
     """
     Run a full Monte Carlo study for the chosen StudyType.
