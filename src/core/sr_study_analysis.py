@@ -121,7 +121,7 @@ class ExperimentSpec:
         
         # Maps label_param aliases → actual run_study kwarg names
         LABEL_ALIASES = {
-            "sr": "null_sr",
+            "sr": "target_sr",
             # add more here as needed, e.g. "bias": "bias_adj"
         }
 
@@ -413,7 +413,7 @@ def plot_results_convergence(
     param_name = spec.param_name
     hue_col    = _hue_column(df, spec)
 
-    if reverse:
+    if reverse and not spec.study_type.is_power:
         df = df.copy()
         df[metric] = 1 - df[metric]
 
