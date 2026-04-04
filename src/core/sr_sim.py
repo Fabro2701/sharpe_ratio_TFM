@@ -299,7 +299,7 @@ def run_dgp_models(
     sr_hats, widths, V_hats, events = _assemble_results(results_list, n_sim, n_models)
 
     # Diagnostics
-    unique = len(np.unique(sr_hats.round(8)))
+    unique = len(np.unique(sr_hats.round(12)))
     if unique < n_sim:
         print(f"  WARNING: {n_sim - unique} duplicate simulated paths detected.")
 
