@@ -117,21 +117,38 @@ class ExperimentSpec:
             )
         return dict(T=T, n_sim=n_sim, target_sr=sr)
     
+    @property
+    def _label_params(self) -> list[str]:
+        """Always a list, whether label_param is a str, tuple, or None."""
+        if self.label_param is None:
+            return []
+        return list(self.label_param) if isinstance(self.label_param, tuple) else [self.label_param]
+
+    @property
+    def _label_col(self) -> str:
+        """Combined column name used as hue in plots, e.g. 'sr|bias_adj'."""
+        return "|".join(self._label_params)
+
+    def file_stem(self, param_value, label_value=None) -> str:
+        st_tag  = self.study_type.name.lower()
+        th_tag  = "theo_" if self.th_moments else ""
+        if label_value is not None:
+            items = label_value if isinstance(label_value, tuple) else (label_value,)
+            label_tag = "_" + "_".join(f"{p}{v}" for p, v in zip(self._label_params, items))
+        else:
+            label_tag = ""
+        return f"{st_tag}_{th_tag}{self.param_name}{param_value}{label_tag}"
+
     def _label_kwargs(self, label_value) -> dict:
-        
-        # Maps label_param aliases → actual run_study kwarg names
         LABEL_ALIASES = {
             "sr": "target_sr",
-            # add more here as needed, e.g. "bias": "bias_adj"
         }
-
-        kwarg_name = LABEL_ALIASES.get(self.label_param, self.label_param)
-        return {kwarg_name: label_value}
+        params = self._label_params
+        values = label_value if isinstance(label_value, tuple) else (label_value,)
+        return {LABEL_ALIASES.get(p, p): v for p, v in zip(params, values)}
 
     def _effective_label_values(self) -> list:
-        """Returns [None] when no label dimension is configured."""
         return self.label_values if self.label_values is not None else [None]
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # DGP helper
@@ -192,7 +209,8 @@ def run_setups(
 
             if "null_sr" in label_kwargs:
                 null_sr = label_kwargs["null_sr"]
-                sim_kwargs["target_sr"] = spec._resolve_null_sr(null_sr)
+                if not spec.study_type.is_power: # target_sr should already be in kwargs
+                    sim_kwargs["target_sr"] = spec._resolve_null_sr(null_sr)
             else:
                 null_sr = spec._resolve_null_sr(sim_kwargs["target_sr"])
             sim_kwargs.pop("null_sr", None)
@@ -213,8 +231,15 @@ def run_setups(
             )
 
             # stamp the label column so parse_setups can reconstruct it
+            #if label_val is not None:
+            #    results[spec.label_param] = label_val
+
+
             if label_val is not None:
-                results[spec.label_param] = label_val
+                items  = label_val if isinstance(label_val, tuple) else (label_val,)
+                for p, v in zip(spec._label_params, items):
+                    results[p] = v
+                results[spec._label_col] = str(label_val)   # combined hue column
 
             out_path = out_dir / f"{prefix}{spec.file_stem(param, label_val)}.csv"
             results.to_csv(out_path, index=False)
@@ -245,8 +270,13 @@ def parse_setups(
             path = out_dir / f"{prefix}{spec.file_stem(param, label_val)}.csv"
             df   = pd.read_csv(path)
             df[spec.param_name] = param
-            if label_val is not None and spec.label_param not in df.columns:
-                df[spec.label_param] = label_val   # back-fill if missing
+            if label_val is not None:
+                items = label_val if isinstance(label_val, tuple) else (label_val,)
+                for p, v in zip(spec._label_params, items):
+                    if p not in df.columns:
+                        df[p] = v
+                if spec._label_col not in df.columns:
+                    df[spec._label_col] = str(label_val)
             all_data.append(df)
 
     df_all = pd.concat(all_data, ignore_index=True)
@@ -255,8 +285,8 @@ def parse_setups(
     if models: df_all = df_all[df_all["avar_model"].isin(models)]
 
     cols = [spec.param_name, "dgp_name", "avar_model", "nominal", metric, "bias", "rmse"]
-    if spec.label_param and spec.label_param in df_all.columns:
-        cols = [spec.label_param] + cols
+    if spec._label_col and spec._label_col in df_all.columns:
+        cols = [spec._label_col] + cols
     cols = [c for c in cols if c in df_all.columns]
 
     if print_table:
@@ -272,12 +302,8 @@ def parse_setups(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _hue_column(df: pd.DataFrame, spec: ExperimentSpec) -> str:
-    """
-    When a label dimension exists and there's only one DGP+model pair,
-    use the label column as the hue; otherwise fall back to dgp_model_pair.
-    """
-    if spec.label_param and spec.label_param in df.columns:
-        return spec.label_param
+    if spec._label_col and spec._label_col in df.columns:
+        return spec._label_col
     return "dgp_model_pair"
 
 def _metric_info(study_type: StudyType, alpha: float) -> tuple[str, float, str]:
