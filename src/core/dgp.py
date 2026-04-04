@@ -239,6 +239,78 @@ class SkewTInnov(InnovDist):
             f"SkewT(μ={self.mean}, df={self.df}, η={self.eta}, "
             f"scale={self.scale:.4f})"
         )
+    
+from scipy.special import gamma
+class APDInnov(InnovDist):
+    """
+    """
+
+    def __init__(self, alpha: float = 0.7, lam: float = 1.35, mean: float = 0.0):
+        self.alpha   = alpha
+        self.lam  = lam
+        self.mean = mean
+        self._compute_constants()
+        self.scale = 1.0
+        self.calculate_theo_moments()
+
+    def _compute_constants(self):
+        alpha_lam = self.alpha ** self.lam
+        one_minus_alpha_lam = (1.0 - self.alpha) ** self.lam
+        self.delta = (2.0 * alpha_lam * one_minus_alpha_lam) / (alpha_lam + one_minus_alpha_lam)
+
+    def _raw_sample(self, size: int, rng: np.random.Generator) -> np.ndarray:
+        alpha, lam, delta = self.alpha, self.lam, self.delta
+        w = rng.gamma(shape=1.0/lam, scale=1.0, size=size)
+        u = rng.uniform(0, 1, size=size)
+        x = np.where(
+            u <= alpha,
+            -alpha * (w / delta) ** (1.0 / lam),
+            (1.0 - alpha) * (w / delta) ** (1.0 / lam)
+        )
+        return (x - x.mean())/x.std()
+
+    def __call__(self, size: int, rng: np.random.Generator) -> np.ndarray:
+        return self.mean + self.scale * self._raw_sample(size, rng)
+    
+    def calibrate_params(self, mu: float, sigma: float) -> "SkewTInnov":
+        self.mean  = mu
+        self.scale = sigma
+        self.calculate_theo_moments()
+        return self
+    
+    def calculate_theo_moments(self):
+        alpha, lam, delta = self.alpha, self.lam, self.delta
+
+        def raw_moment(k):
+            M_k = (1 - alpha)**(k + 1) + ((-1)**k) * (alpha**(k + 1))
+            G_k = gamma((k + 1) / lam) / ((delta**(k / lam)) * gamma(1 / lam))
+            return G_k * M_k
+        
+        m1 = raw_moment(1)
+        m2 = raw_moment(2)
+        m3 = raw_moment(3)
+        m4 = raw_moment(4)
+        
+        var = m2 - m1**2
+        sd = np.sqrt(var)
+        
+        mu3 = m3 - 3*m1*m2 + 2*(m1**3)
+        mu4 = m4 - 4*m1*m3 + 6*(m1**2)*m2 - 3*(m1**4)
+        
+        self.th_skew = mu3 / (sd**3)
+        self.th_exc_kurt = mu4 / (sd**4) - 3
+
+        self.th_rho   = 0.0
+        self.th_nu    = 0.0
+        self.th_mean  = self.mean
+        self.th_sigma = self.scale
+    
+    def __repr__(self):
+        return (
+            f"APD(μ={self.mean}, alpha={self.alpha}, lam={self.lam}, "
+            f"scale={self.scale:.4f})"
+        )
+    
 
 
 class UniformInnov(InnovDist):
@@ -654,6 +726,9 @@ DGP_EXAMPLES: dict[str, callable] = {
     ),
     "iid_skewt6_m05": (
         lambda: IIDProcess(SkewTInnov(df=6, eta=-0.5)).calibrate_params(mu=1.5, sigma=1.2)
+    ),
+    "iid_apd": (
+        lambda: IIDProcess(APDInnov(alpha=0.7, lam=1.35)).calibrate_params(mu=1.5, sigma=1.2)
     ),
     "ar1_06_normal": (
         lambda: ARProcess(phi=0.6, innov=NormalInnov()).calibrate_params(mu=1.5, sigma=0.4)

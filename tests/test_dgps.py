@@ -22,6 +22,7 @@ CALIBRATION_MOMENTS = {
     "iid_t6": {"mu": 1.5, "sigma": 1.2},
     "iid_skewt60_m05": {"mu": 1.5, "sigma": 1.2},
     "iid_skewt6_m05": {"mu": 1.5, "sigma": 1.2},
+    "iid_apd": {"mu": 1.5, "sigma": 1.2},
     "ar1_06_normal": {"mu": 1.5, "sigma": 0.4},
     "ar1_m06_normal": {"mu": 1.5, "sigma": 0.4},
     "ar1_06_t6": {"mu": 1.5, "sigma": 0.4},
