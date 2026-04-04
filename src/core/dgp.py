@@ -159,7 +159,7 @@ class StudentTInnov(InnovDist):
     def __repr__(self):
         return f"StudentT(μ={self.mean}, df={self.df}, scale={self.scale:.4f})"
 
-
+#TODO fix real mean sigma std like in apd
 class SkewTInnov(InnovDist):
     """
     Hansen (1994) skewed-t innovation.
@@ -267,7 +267,7 @@ class APDInnov(InnovDist):
             -alpha * (w / delta) ** (1.0 / lam),
             (1.0 - alpha) * (w / delta) ** (1.0 / lam)
         )
-        return (x - x.mean())/x.std()
+        return (x - self.m1)/self.sd
 
     def __call__(self, size: int, rng: np.random.Generator) -> np.ndarray:
         return self.mean + self.scale * self._raw_sample(size, rng)
@@ -293,6 +293,7 @@ class APDInnov(InnovDist):
         
         var = m2 - m1**2
         sd = np.sqrt(var)
+        self.m1, self.sd = m1, sd
         
         mu3 = m3 - 3*m1*m2 + 2*(m1**3)
         mu4 = m4 - 4*m1*m3 + 6*(m1**2)*m2 - 3*(m1**4)
