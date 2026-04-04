@@ -384,10 +384,13 @@ def plot_results_by_pair(
     plt.show()
 
 
-def plot_results_convergence(df, spec, alpha=0.05, title=""):
+def plot_results_convergence(df, spec, alpha=0.05, title="", reverse=False, log=False):
     metric, target_val, y_label = _metric_info(spec.study_type, alpha)
     param_name = spec.param_name
     hue_col    = _hue_column(df, spec)
+
+    if reverse:
+        df[metric] = 1-df[metric]
 
     sns.set_theme(style="whitegrid")
     g = sns.relplot(
@@ -399,8 +402,9 @@ def plot_results_convergence(df, spec, alpha=0.05, title=""):
     )
     for ax in g.axes.flat:
         if target_val is not None:
-            ax.axhline(target_val, color="black", linestyle="--", linewidth=2, zorder=0)
-        if param_name in ("T", "n_sim"):
+            ax.axhline(1-target_val if reverse else target_val, color="black", linestyle="--", linewidth=2, zorder=0)
+        #if param_name in ("T", "n_sim"):
+        if log:
             ax.set_xscale("log")
 
     g.fig.suptitle(f"{spec.study_type.name} — {y_label} vs. {param_name}  {title}", y=1.05)
@@ -434,6 +438,7 @@ def run_analysis(
     param_values: list | None = None,
     prefix:       str         = "",
     out_dir:      Path | None = None,
+    reverse = False, log=False
 ) -> None:
     """Load saved results for one experiment and produce both plot types."""
     spec = experiments[experiment_name]
@@ -447,4 +452,4 @@ def run_analysis(
 
     th_label = " (Theo moments)" if spec.th_moments else ""
     plot_results_by_pair(df, spec, alpha=alpha, title=th_label)
-    plot_results_convergence(df, spec, alpha=alpha, title=th_label)
+    plot_results_convergence(df, spec, alpha=alpha, title=th_label, reverse=reverse, log=log)
