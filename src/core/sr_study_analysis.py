@@ -386,31 +386,87 @@ def plot_results_by_pair(
     g.set_axis_labels(param_name, y_label)
     plt.show()
 
-#TODO arbitrary extra args
-def plot_results_convergence(df, spec, alpha=0.05, title="", reverse=False, log=False):
+
+from itertools import cycle
+def _zip_cycled(levels: list, values: list, default) -> dict:
+    """Map levels to values, cycling if values is shorter than levels."""
+    source = cycle(values) if values else cycle([default])
+    return {level: val for level, val in zip(levels, source)}
+
+def plot_results_convergence(
+    df,
+    spec,
+    alpha:         float       = 0.05,
+    title:         str         = "",
+    reverse:       bool        = False,
+    log:           bool        = False,
+    yticks:        list | None = None,
+    ylim:          tuple | None = None,
+    markers:       list | None = None,   # per hue level, e.g. ['o', 's', '^']
+    dashes:        list | None = None,   # per style level
+    palette:       list | None = None,   # override default colour cycle
+    linewidth:     float       = 2.0,
+    markersize:    float       = 7.0,
+    relplot_kwargs: dict | None = None,  # escape hatch for anything else
+):
     metric, target_val, y_label = _metric_info(spec.study_type, alpha)
     param_name = spec.param_name
     hue_col    = _hue_column(df, spec)
 
     if reverse:
-        df[metric] = 1-df[metric]
+        df = df.copy()
+        df[metric] = 1 - df[metric]
 
     sns.set_theme(style="whitegrid")
+
+    # ── build marker / dash maps if explicit lists are provided ──────────────
+    hue_levels = sorted(df[hue_col].unique(), key=str)
+
+    # style encodes dgp_name only when hue is already doing dgp_name (classic multi-pair mode)
+    # otherwise fold style onto hue so markers still vary per hue level
+    style_col    = "dgp_name" if hue_col == "dgp_model_pair" else hue_col
+    style_levels = sorted(df[style_col].unique(), key=str)
+
+    marker_map  = _zip_cycled(style_levels, markers, "o")
+    dash_map    = _zip_cycled(style_levels, dashes,  "")
+    palette_map = _zip_cycled(hue_levels,  palette,  None) if palette else None
+    extra = relplot_kwargs or {}
+
     g = sns.relplot(
         data=df, x=param_name, y=metric,
         hue=hue_col,
-        style="dgp_name" if hue_col != "dgp_name" else None,
-        dashes=False, markers=True, kind="line",
-        marker="o", height=4.5, aspect=1.2, errorbar=None, alpha=0.7,
+        style=style_col,
+        markers=marker_map,
+        dashes=dash_map if dash_map else False,
+        palette=palette_map,
+        kind="line",
+        height=4.5, aspect=1.2, errorbar=None, alpha=0.7,
+        **extra,
     )
+
+    # ── per-axes decorations ─────────────────────────────────────────────────
     for ax in g.axes.flat:
         if target_val is not None:
-            ax.axhline(1-target_val if reverse else target_val, color="black", linestyle="--", linewidth=2, zorder=0)
-        #if param_name in ("T", "n_sim"):
+            ax.axhline(
+                1 - target_val if reverse else target_val,
+                color="black", linestyle="--", linewidth=2, zorder=0,
+            )
         if log:
             ax.set_xscale("log")
+        if yticks is not None:
+            ax.set_yticks(yticks)
+            ax.set_yticklabels([str(t) for t in yticks])
+        if ylim is not None:
+            ax.set_ylim(ylim)
 
-    g.fig.suptitle(f"{spec.study_type.name} — {y_label} vs. {param_name}  {title}", y=1.05)
+        # uniform line / marker size
+        for line in ax.get_lines():
+            line.set_linewidth(linewidth)
+            line.set_markersize(markersize)
+
+    g.fig.suptitle(
+        f"{spec.study_type.name} — {y_label} vs. {param_name}  {title}", y=1.05
+    )
     g.set_axis_labels(param_name, y_label)
     plt.show()
 
@@ -442,7 +498,7 @@ def run_analysis(
     prefix:       str         = "",
     out_dir:      Path | None = None,
     plot_mask:    list = [True, True, True], # [table, bar, line]
-    reverse = False, log=False
+    line_plot_kargs = {}
 ) -> None:
     """Load saved results for one experiment and produce both plot types."""
     spec = experiments[experiment_name]
@@ -459,4 +515,4 @@ def run_analysis(
     if plot_mask[1]:
         plot_results_by_pair(df, spec, alpha=alpha, title=th_label)
     if plot_mask[2]:
-        plot_results_convergence(df, spec, alpha=alpha, title=th_label, reverse=reverse, log=log)
+        plot_results_convergence(df, spec, alpha=alpha, title=th_label, **line_plot_kargs)

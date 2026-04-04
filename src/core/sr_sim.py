@@ -530,7 +530,3 @@ def study_report(results: pd.DataFrame, alpha: float = 0.05, tol: float = 0.03) 
     lines.append("\n" + sep)
     return "\n".join(lines)
 
-
-# legacy alias so existing call-sites don't break immediately
-coverage_report = study_report
-run_coverage_study = lambda *a, **kw: run_study(StudyType.TWO_SIDED_COVERAGE, *a, **kw)
