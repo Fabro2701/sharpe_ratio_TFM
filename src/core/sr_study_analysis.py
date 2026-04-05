@@ -69,6 +69,7 @@ class ExperimentSpec:
     n_jobs:       int                      = 1
     label_param:  str  | None              = None   # e.g. "sr" or "bias_adj"
     label_values: list | None              = None   # e.g. [0.3, 0.5, 0.8]
+    bias_adj :    str | bool               = False
     # ── convenience ──────────────────────────────────────────────────────────
 
     @property
@@ -224,6 +225,7 @@ def run_setups(
                 calib_mu    = spec.calib_mu,
                 calib_sigma = spec.calib_sigma,
                 alpha       = spec.alpha,
+                bias_adj    = spec.bias_adj,
                 seed        = spec.seed,
                 verbose     = False,
                 n_jobs      = spec.n_jobs,

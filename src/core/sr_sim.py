@@ -107,16 +107,19 @@ def _sr_hat(x: np.ndarray) -> float:
 def _avar_estimate(model: AvarModel, sr_h: float, x: np.ndarray,
                    th_moments: bool, th_moms: dict | None) -> float:
     """Return the asymptotic variance estimate V̂ for a single model/path."""
+    mom = None
     if th_moments and th_moms is not None:
         V = float(model(sr_h, **th_moms))
+        mom = th_moms
     else:
         params_h = model.fit(x)
         V = float(model(sr_h, **params_h))
+        mom = params_h
 
     if not (np.isfinite(V) and V > 0):
         print("no fitted nuisance params")
         V = float(model(sr_h))   # bare fallback — no fitted nuisance params
-    return V
+    return V, mom
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -149,7 +152,7 @@ def _event_one_sample(sr_h: float, V: float, T: int, null_sr: float,
 
 
 def _run_one_sample_path(seed, dgp, avar_models, T, null_sr, alpha,
-                         study_type, th_moments, th_moms):
+                         study_type, th_moments, th_moms, bias_adj):
     rng  = np.random.default_rng(seed)
     x    = dgp.simulate(T, rng)
     sr_h = _sr_hat(x)
@@ -160,8 +163,9 @@ def _run_one_sample_path(seed, dgp, avar_models, T, null_sr, alpha,
     events = np.zeros(n, dtype=bool)
 
     for j, model in enumerate(avar_models):
-        V = _avar_estimate(model, sr_h, x, th_moments, th_moms)
-        event, width = _event_one_sample(sr_h, V, T, null_sr, alpha, study_type)
+        V, mom = _avar_estimate(model, sr_h, x, th_moments, th_moms)
+        sr_h_adj = model.correct_bias(bias_adj, T, sr_h, **mom)
+        event, width = _event_one_sample(sr_h_adj, V, T, null_sr, alpha, study_type)
         widths[j] = width
         V_hats[j] = V
         events[j] = event
@@ -175,7 +179,7 @@ def _run_one_sample_path(seed, dgp, avar_models, T, null_sr, alpha,
 
 def _run_two_sample_path(seed, dgp1, dgp2, avar_models1, avar_models2,
                          T, null_diff, alpha, study_type, th_moments,
-                         th_moms1, th_moms2):
+                         th_moms1, th_moms2, bias_adj):
     """
     H₀: SR₁ − SR₂ ≤ Δ₀  (null_diff = Δ₀, usually 0).
 
@@ -197,8 +201,8 @@ def _run_two_sample_path(seed, dgp1, dgp2, avar_models1, avar_models2,
     events = np.zeros(n, dtype=bool)
 
     for j, (m1, m2) in enumerate(zip(avar_models1, avar_models2)):
-        V1 = _avar_estimate(m1, sr_h1, x1, th_moments, th_moms1)
-        V2 = _avar_estimate(m2, sr_h2, x2, th_moments, th_moms2)
+        V1, _  = _avar_estimate(m1, sr_h1, x1, th_moments, th_moms1)
+        V2, _ = _avar_estimate(m2, sr_h2, x2, th_moments, th_moms2)
         V_combined = V1 + V2 #check rho missing
         V_hats[j]  = V_combined
 
@@ -246,6 +250,7 @@ def run_dgp_models(
     dgp2=None,    avar_models2=None,
     true_sr2:     float = 0.0,
     null_diff:    float = 0.0,
+    bias_adj      = False,
 ):
     """
     Simulate n_sim paths for one DGP (or a pair for two-sample studies)
@@ -279,13 +284,13 @@ def run_dgp_models(
                       avar_models1=avar_models, avar_models2=avar_models2,
                       T=T, null_diff=null_diff, alpha=alpha,
                       study_type=study_type, th_moments=th_moments,
-                      th_moms1=th_moms1, th_moms2=th_moms2)
+                      th_moms1=th_moms1, th_moms2=th_moms2, bias_adj=bias_adj)
     else:
         sim_fn = _run_one_sample_path
         kwargs = dict(dgp=dgp1, avar_models=avar_models, T=T,
                       null_sr=null_sr, alpha=alpha,
                       study_type=study_type, th_moments=th_moments,
-                      th_moms=th_moms1)
+                      th_moms=th_moms1, bias_adj=bias_adj)
 
     if n_jobs == 1:
         results_list = [sim_fn(seed, **kwargs) for seed in seeds]
@@ -349,6 +354,8 @@ def run_study(
     avar_models2: list[AvarModel] | None = None,
     target_sr2:   float = 0.3,
     null_diff:    float = 0.0,
+    # bias correction
+    bias_adj = False,
     **kwargs,
 ) -> pd.DataFrame:
     """
@@ -436,6 +443,7 @@ def run_study(
             avar_models2 = avar_models2 or [],
             true_sr2     = target_sr2,
             null_diff    = null_diff,
+            bias_adj     = bias_adj,
         )
 
         for model in avar_models:
