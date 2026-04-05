@@ -453,25 +453,32 @@ def plot_results_convergence(
 
     sns.set_theme(style="whitegrid")
 
-    # ── build marker / dash maps if explicit lists are provided ──────────────
-    hue_levels = sorted(df[hue_col].unique(), key=str)
+    # ── resolve which columns drive colour vs. marker ────────────────────────
+    # Multi-pair mode: many DGPs × many models → colour = avar_model, marker = dgp_name
+    # Single-level mode: one grouping → colour and marker both follow hue_col
+    if hue_col == "dgp_model_pair":
+        plot_hue   = "avar_model"
+        plot_style = "dgp_name"
+    else:
+        plot_hue   = hue_col
+        plot_style = hue_col          # same col → seaborn merges into one legend
 
-    # style encodes dgp_name only when hue is already doing dgp_name (classic multi-pair mode)
-    # otherwise fold style onto hue so markers still vary per hue level
-    style_col    = "dgp_name" if hue_col == "dgp_model_pair" else hue_col
-    style_levels = sorted(df[style_col].unique(), key=str)
+    hue_levels   = sorted(df[plot_hue].unique(),   key=str)
+    style_levels = sorted(df[plot_style].unique(), key=str)
 
-    marker_map  = _zip_cycled(style_levels, markers, "o")
-    dash_map    = _zip_cycled(style_levels, dashes,  "")
-    palette_map = _zip_cycled(hue_levels,  palette,  None) if palette else None
+    # ── build marker / dash / palette maps ───────────────────────────────────
+    marker_map  = _zip_cycled(style_levels, markers or [], "o")
+    dash_map    = _zip_cycled(style_levels, dashes,        "") if dashes else False
+    palette_map = _zip_cycled(hue_levels,  palette or [],  None) if palette else None
+
     extra = relplot_kwargs or {}
 
     g = sns.relplot(
         data=df, x=param_name, y=metric,
-        hue=hue_col,
-        style=style_col,
+        hue=plot_hue,
+        style=plot_style,
         markers=marker_map,
-        dashes=dash_map if dash_map else False,
+        dashes=dash_map,
         palette=palette_map,
         kind="line",
         height=4.5, aspect=1.2, errorbar=None, alpha=0.7,
@@ -492,8 +499,6 @@ def plot_results_convergence(
             ax.set_yticklabels([str(t) for t in yticks])
         if ylim is not None:
             ax.set_ylim(ylim)
-
-        # uniform line / marker size
         for line in ax.get_lines():
             line.set_linewidth(linewidth)
             line.set_markersize(markersize)
