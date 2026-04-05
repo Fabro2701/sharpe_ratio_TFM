@@ -72,6 +72,8 @@ class AvarModel(abc.ABC):
         return self.avar(sr, **kwargs)
     
     def correct_bias(self, type, T, sr_hat, **kwargs):
+        if type==False:
+            return sr_hat
         raise NotImplementedError()
 
     # _defaults is populated by model_meta._build_registry(); safe fallback = {}

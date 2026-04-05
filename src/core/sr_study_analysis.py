@@ -162,11 +162,11 @@ def set_extra_dgps(dgps):
 
 def _build_dgp_specs(names: list[str], **kwargs) -> list[DGPSpec]:
     #dgps = DGP_EXAMPLES | EXTRA_DGPS
-    dgps = EXTRA_DGPS
+    dgps = EXTRA_DGPS if EXTRA_DGPS else DGP_EXAMPLES
     missing = [n for n in names if n not in dgps]
     if missing:
         raise ValueError(f"Unknown DGP name(s): {missing}. "
-                         f"Available: {sorted(DGP_EXAMPLES)}")
+                         f"Available: {sorted(dgps)}")
     return [DGPSpec(dgps[n](**kwargs), n) for n in names] #collisions not avoided (kwargs)TODO
 
 

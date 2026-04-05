@@ -3,7 +3,7 @@ import pytest
 from core.dgp import DGP_EXAMPLES
 from core.models import REGISTRY
 
-from core.coverage import run_coverage_study, DGPSpec
+from core.sr_sim import run_study, DGPSpec, StudyType
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Study parameters
@@ -66,10 +66,12 @@ BAD_PAIRS = [make_pair(*p) for p in [
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _run_single(dgp_spec: DGPSpec, model, seed: int = 42) -> float:
-    res = run_coverage_study(
+    res = run_study(
+        study_type=StudyType.TWO_SIDED_COVERAGE,
         dgp_specs=[dgp_spec],
         avar_models=[model],
         target_sr=TARGET_SR,
+        calib_mu=0.15,
         T=T,
         n_sim=N_SIM,
         alpha=ALPHA,
