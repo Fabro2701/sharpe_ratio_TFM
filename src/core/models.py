@@ -70,6 +70,9 @@ class AvarModel(abc.ABC):
 
     def __call__(self, sr: float | np.ndarray, **kwargs) -> float | np.ndarray:
         return self.avar(sr, **kwargs)
+    
+    def correct_bias(self, type, T, sr_hat, **kwargs):
+        raise NotImplementedError()
 
     # _defaults is populated by model_meta._build_registry(); safe fallback = {}
     _defaults: dict[str, float] = {}
@@ -150,6 +153,15 @@ class IIDNonNormalModel(AvarModel):
             "skew":     float(stats.skew(x)),
             "exc_kurt": float(stats.kurtosis(x, fisher=True)),
         }
+    
+    def correct_bias(self, type, T, sr_hat, exc_kurt=0.0, **kw):
+        if type == False:
+            return sr_hat
+        elif type == "sigma":#expansion at sigma
+            return sr_hat / (1 + 0.25*(exc_kurt+3 - 1) / T)
+        else:
+            raise ValueError(f"type error {type}")
+
 
 
 class AR1NormalModel(AvarModel):

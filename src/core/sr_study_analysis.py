@@ -216,6 +216,12 @@ def run_setups(
                 null_sr = spec._resolve_null_sr(sim_kwargs["target_sr"])
             sim_kwargs.pop("null_sr", None)
 
+            if "bias_adj" in label_kwargs:
+                bias_adj = label_kwargs["bias_adj"]
+            else:
+                bias_adj = spec.bias_adj
+            sim_kwargs.pop("bias_adj", None)
+
             results = run_study(
                 study_type  = spec.study_type,
                 dgp_specs   = dgp_specs,
@@ -225,7 +231,7 @@ def run_setups(
                 calib_mu    = spec.calib_mu,
                 calib_sigma = spec.calib_sigma,
                 alpha       = spec.alpha,
-                bias_adj    = spec.bias_adj,
+                bias_adj    = bias_adj,
                 seed        = spec.seed,
                 verbose     = False,
                 n_jobs      = spec.n_jobs,
