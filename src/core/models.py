@@ -103,6 +103,14 @@ class IIDNormalModel(AvarModel):
     def fit(self, x):
         return {}
     
+    def correct_bias(self, type, T, sr_hat, **kw):
+        if type == False:
+            return sr_hat
+        elif type == "sigma":#expansion at sigma
+            return sr_hat / (1 + 0.5 / T)
+        else:
+            raise ValueError(f"type error {type}")
+    
 class _CustomStudentsT(StudentsT):
         def constraints(self):
             # Mantenemos la matriz A igual, pero cambiamos el vector b
