@@ -270,7 +270,7 @@ def run_dgp_models(
 
     # Seed management
     if n_jobs == 1:
-        seeds = [rng] * n_sim   # reuse rng sequentially (advances each call)
+        seeds = rng.integers(0, 2**63, size=n_sim)
     else:
         ss       = np.random.SeedSequence(rng.integers(0, 2**63))
         seeds    = ss.spawn(n_sim)
@@ -417,7 +417,7 @@ def run_study(
     # ── main simulation loop ──────────────────────────────────────────────────
     total = len(calibrated1)
     for idx, (dgp_name, dgp1) in enumerate(calibrated1, 1):
-        dgp_rng = np.random.default_rng(master_rng.integers(0, 2**31))
+        dgp_rng = np.random.default_rng(master_rng.integers(0, 2**63))
 
         dgp2_obj  = calibrated2[idx - 1][1] if calibrated2 else None
         dgp2_name = calibrated2[idx - 1][0] if calibrated2 else None
