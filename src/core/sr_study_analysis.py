@@ -427,11 +427,14 @@ def _zip_cycled(levels: list, values: list, default) -> dict:
     source = cycle(values) if values else cycle([default])
     return {level: val for level, val in zip(levels, source)}
 
+from utils import intervals
+
 def plot_results_convergence(
     df,
     spec,
     alpha:         float       = 0.05,
     title:         str         = "",
+    interval:      bool        = True,
     reverse:       bool        = False,
     log:           bool        = False,
     yticks:        list | None = None,
@@ -492,6 +495,36 @@ def plot_results_convergence(
                 1 - target_val if reverse else target_val,
                 color="black", linestyle="--", linewidth=2, zorder=0,
             )
+            if interval:
+                interval_conf = 0.05
+                if param_name == "n_sim":
+                    # As N grows, the interval shrinks. This creates a funnel curve.
+                    lower_bounds = []
+                    upper_bounds = []
+                    param_values = spec.param_values
+                    for n in param_values:
+                        l, u = intervals.acceptance_region_binomial_prop(target_val, n, interval_conf)
+                        if reverse:
+                            lower_bounds.append(1 - u)
+                            upper_bounds.append(1 - l)
+                        else:
+                            lower_bounds.append(l)
+                            upper_bounds.append(u)
+                    
+                    # Plot as curves over the x-axis (param_values)
+                    ax.plot(param_values, lower_bounds, color="gray", linestyle=":", linewidth=1.5, zorder=0)
+                    ax.plot(param_values, upper_bounds, color="gray", linestyle=":", linewidth=1.5, zorder=0)
+                    
+                else:
+                    # N is fixed (n_default), so the interval bounds are flat horizontal lines
+                    l, u = intervals.acceptance_region_binomial_prop(target_val, spec.n_default, interval_conf)
+                    if reverse:
+                        l, u = 1 - u, 1 - l
+                    
+                    # Plot as horizontal lines
+                    ax.axhline(l, color="gray", linestyle=":", linewidth=1.5, zorder=0)
+                    ax.axhline(u, color="gray", linestyle=":", linewidth=1.5, zorder=0)
+            
         if log:
             ax.set_xscale("log")
         if yticks is not None:
