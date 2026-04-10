@@ -71,10 +71,16 @@ class AvarModel(abc.ABC):
     def __call__(self, sr: float | np.ndarray, **kwargs) -> float | np.ndarray:
         return self.avar(sr, **kwargs)
     
-    def correct_bias(self, type, T, sr_hat, **kwargs):
-        if type==False:
-            return sr_hat
+    def _correct_bias(self, T, sr_hat, **kw):
         raise NotImplementedError()
+    
+    def correct_bias(self, type, T, sr_hat, **kw):
+        if type == False:
+            return sr_hat
+        elif type == True:
+            return self._correct_bias(T, sr_hat, **kw)
+        else:
+            raise ValueError(f"type error {type}")
 
     # _defaults is populated by model_meta._build_registry(); safe fallback = {}
     _defaults: dict[str, float] = {}
@@ -103,13 +109,9 @@ class IIDNormalModel(AvarModel):
     def fit(self, x):
         return {}
     
-    def correct_bias(self, type, T, sr_hat, **kw):
-        if type == False:
-            return sr_hat
-        elif type == "sigma":#expansion at sigma
-            return sr_hat / (1 + 0.5 / T)
-        else:
-            raise ValueError(f"type error {type}")
+    def _correct_bias(self, T, sr_hat, **kw):
+        return sr_hat/(1 + 0.75/T)
+        
     
 class _CustomStudentsT(StudentsT):
         def constraints(self):
@@ -164,15 +166,10 @@ class IIDNonNormalModel(AvarModel):
             "exc_kurt": float(stats.kurtosis(x, fisher=True)),
         }
     
-    def correct_bias(self, type, T, sr_hat, exc_kurt=0.0, **kw):
-        if type == False:
-            return sr_hat
-        elif type == "sigma":#expansion at sigma
-            return sr_hat / (1 + 0.25*(exc_kurt+3 - 1) / T)
-        else:
-            raise ValueError(f"type error {type}")
-
-
+    def _correct_bias(self, T, sr_hat, skew=0.0, exc_kurt=0.0, **kw):
+        num = sr_hat + 0.5*skew/T
+        den = 1 + 0.75*0.5/T * (exc_kurt+2)
+        return num / den
 
 class AR1NormalModel(AvarModel):
     """AR(1) process with Normal innovations."""
@@ -192,6 +189,9 @@ class AR1NormalModel(AvarModel):
             np.clip(np.dot(dm, y - y.mean()) / den, -0.999, 0.999)
         )
         return {"rho": rho}
+    
+    def _correct_bias(self, T, sr_hat, rho=0.2, **kw):
+        return sr_hat / (1 + 3/(4*T)*(1+rho**2)/(1-rho**2))
 
 
 
@@ -203,7 +203,7 @@ class AR1NonNormalModel(AvarModel):
 
     def _avar(self, sr, rho=0.2, skew=0.0, exc_kurt=0.0, **kw):
         base   = (1.0 + rho)  / (1.0 - rho)
-        aux1 = - sr * skew * (1 + rho+ rho**2) / (1.0 - rho**2)
+        aux1 = - sr * skew * (1 + rho + rho**2) / (1.0 - rho**2)
         aux2 =  sr**2 * (exc_kurt + 2)/4 * (1 + rho**2) / (1.0 - rho**2)
         return base + aux1 + aux2
 
@@ -218,7 +218,13 @@ class AR1NonNormalModel(AvarModel):
             "skew":     float(stats.skew(x)),
             "exc_kurt": float(stats.kurtosis(x, fisher=True)),
             "rho": rho
-        }
+        }    
+    
+    def _correct_bias(self, T, sr_hat, rho=0.2, skew=0.0, exc_kurt=0.0, **kw):
+        num = sr_hat + 0.5*skew/T * (1 + rho + rho**2) / (1.0 - rho**2)
+        den = (1 + 3/(4*T)*(exc_kurt+2)*(1+rho**2)/(1-rho**2))
+
+        return num / den
     
 class GARCH11Model(AvarModel):
     """Process with GARCH(1, 1) innovations."""
