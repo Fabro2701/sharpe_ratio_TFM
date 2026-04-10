@@ -20,7 +20,7 @@ from scipy.special import gamma as gamma_func
 from statsmodels.tsa.arima_process import ArmaProcess
 # --- arch imports ---
 from arch import arch_model
-from arch.univariate import ConstantMean, GARCH
+from arch.univariate import ConstantMean, GARCH, ARX
 from arch.univariate.distribution import (
     Normal,
     StudentsT,
@@ -670,7 +670,83 @@ class GARCHProcess(DGP):
             f"dist={self.dist!r}{dp}"
         )
  
- 
+
+class ARGARCHProcess(DGP):
+    """
+    AR(1)-GARCH(1,1) process with Normal innovations.
+
+    Parameters
+    ----------
+    mu : float
+        Unconditional mean of the process.
+    phi : float
+        AR(1) persistence parameter.
+    omega, alpha, beta : GARCH(1,1) variance parameters.
+    """
+
+    label = "AR1-GARCH(1,1)-Normal"
+
+    def __init__(
+        self,
+        mu:    float = 0.00,
+        phi:   float = 0.50,
+        omega: float = 0.05,
+        alpha: float = 0.10,
+        beta:  float = 0.85,
+    ):
+        self.mu    = mu
+        self.phi   = phi
+        self.omega = omega
+        self.alpha = alpha
+        self.beta  = beta
+        self.calculate_theo_moments()
+
+    # ------------------------------------------------------------------
+    # DGP interface
+    # ------------------------------------------------------------------
+
+    def simulate(self, n: int, rng: np.random.Generator) -> np.ndarray:
+        # AR(1) mean model instead of ConstantMean
+        m = ARX(lags=1)
+        m.volatility = GARCH(p=1, q=1)
+        m.distribution = Normal(seed=rng)
+
+        # The AR(1) mean equation is: y_t = c + phi * y_{t-1} + eps_t
+        # To match the unconditional mean `mu`, the constant `c` must be:
+        # c = mu * (1 - phi)
+        const = self.mu * (1.0 - self.phi)
+
+        # Full parameter vector: [c, phi] + [omega, alpha, beta]
+        params = [const, self.phi, self.omega, self.alpha, self.beta]
+
+        result = m.simulate(params, nobs=n, burn=100)
+        return result["data"].values
+
+    def calibrate_params(self, mu: float, sigma: float) -> "ARGARCHProcess":
+        self.mu = mu
+        
+        # Variance of the AR(1) process is: sigma^2 = var_eps / (1 - phi^2)
+        # Therefore, the unconditional variance of the error term (eps) is:
+        var_eps = (sigma ** 2) * (1.0 - self.phi ** 2)
+        
+        # In a GARCH(1,1), var_eps = omega / (1 - alpha - beta)
+        self.omega = var_eps * (1.0 - self.alpha - self.beta)
+        
+        self.calculate_theo_moments()
+        return self
+
+    # ------------------------------------------------------------------
+    # Theoretical moments
+    # ------------------------------------------------------------------
+
+    def calculate_theo_moments(self):
+        a=0#TODO
+
+    def _repr_params(self):
+        return (
+            f"mu={self.mu}, phi={self.phi}, "
+            f"omega={self.omega}, alpha={self.alpha}, beta={self.beta}, "
+        )
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Outlier injection wrapper
