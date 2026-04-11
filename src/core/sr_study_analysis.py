@@ -439,6 +439,7 @@ def plot_results_convergence(
     log:           bool        = False,
     yticks:        list | None = None,
     ylim:          tuple | None = None,
+    xticks:        list | None = None,
     markers:       list | None = None,   # per hue level, e.g. ['o', 's', '^']
     dashes:        list | None = None,   # per style level
     palette:       list | None = None,   # override default colour cycle
@@ -532,6 +533,9 @@ def plot_results_convergence(
             ax.set_yticklabels([str(t) for t in yticks])
         if ylim is not None:
             ax.set_ylim(ylim)
+        if xticks is not None:
+            ax.set_xticks(xticks)
+            ax.set_xticklabels([str(t) for t in xticks])
         for line in ax.get_lines():
             line.set_linewidth(linewidth)
             line.set_markersize(markersize)
