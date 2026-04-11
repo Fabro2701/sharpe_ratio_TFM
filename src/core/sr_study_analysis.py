@@ -327,6 +327,7 @@ def plot_results_by_pair(
     spec:  ExperimentSpec,
     alpha: float = 0.05,
     title: str   = "",
+    savefig = None,
 ):
     """
     Bar chart of coverage or power vs. the swept parameter.
@@ -418,6 +419,10 @@ def plot_results_by_pair(
         f"{spec.study_type.name} — {y_label} vs. {param_name}  {title}", y=1.05
     )
     g.set_axis_labels(param_name, y_label)
+    if savefig:
+        path = Path(savefig)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(path)
     plt.show()
 
 
@@ -434,6 +439,7 @@ def plot_results_convergence(
     spec,
     alpha:         float       = 0.05,
     title:         str         = "",
+    savefig = None,
     interval:      bool        = True,
     reverse:       bool        = False,
     log:           bool        = False,
@@ -544,6 +550,10 @@ def plot_results_convergence(
         f"{spec.study_type.name} — {y_label} vs. {param_name}  {title}", y=1.05
     )
     g.set_axis_labels(param_name, y_label)
+    if savefig:
+        path = Path(savefig)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(path)
     plt.show()
 
 
@@ -574,6 +584,7 @@ def run_analysis(
     prefix:       str         = "",
     out_dir:      Path | None = None,
     plot_mask:    list = [True, True, True], # [table, bar, line]
+    savefig_folder = None, 
     line_plot_kargs = {}
 ) -> None:
     """Load saved results for one experiment and produce both plot types."""
@@ -589,6 +600,9 @@ def run_analysis(
 
     th_label = " (Theo moments)" if spec.th_moments else ""
     if plot_mask[1]:
-        plot_results_by_pair(df, spec, alpha=alpha, title=th_label)
+        plot_results_by_pair(df, spec, alpha=alpha, title=th_label,
+                             savefig=savefig_folder / (experiment_name + "_bar") if savefig_folder else False)
     if plot_mask[2]:
-        plot_results_convergence(df, spec, alpha=alpha, title=th_label, **line_plot_kargs)
+        plot_results_convergence(df, spec, alpha=alpha, title=th_label, 
+                                 savefig=savefig_folder / (experiment_name + "_line") if savefig_folder else False, 
+                                 **line_plot_kargs)
