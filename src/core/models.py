@@ -65,8 +65,9 @@ class AvarModel(abc.ABC):
         from the Parameter specs in model_meta.py (injected at registry-build
         time via _set_defaults).
         """
-        known    = {k: v for k, v in kwargs.items() if k in self.param_names}
-        return self._avar(sr, **{**self._defaults, **known})
+        #known    = {k: v for k, v in kwargs.items() if k in self.param_names}
+        #return self._avar(sr, **{**self._defaults, **known})
+        return self._avar(sr, **kwargs)
 
     def __call__(self, sr: float | np.ndarray, **kwargs) -> float | np.ndarray:
         return self.avar(sr, **kwargs)
@@ -240,7 +241,6 @@ class GARCH11Model(AvarModel):
         
 
     def fit(self, x):
-        #rescale changes omega but it doesnt apper in avar
         am = arch_model(x, mean='Constant', vol='GARCH',p=1,q=1, dist='normal', rescale=True)
         res_fit = am.fit(update_freq=0,disp=False)
         return {
@@ -250,7 +250,57 @@ class GARCH11Model(AvarModel):
             "skew": float(stats.skew(x)), 
             "exc_kurt":float(stats.kurtosis(x, fisher=True))
         }
+    
+class HACModel(AvarModel):
+    """non-parametric Newey-West HAC estimator"""
+    name        = "HAC"
+    short_name  = "hac"
+    param_names = ('x')
 
+    def _avar(self, sr, x, **kw):
+        T = len(x)
+        
+        # 1. Calculate sample moments
+        mu = np.mean(x)
+        var = np.var(x)
+        sigma = np.sqrt(var)
+        
+        # 2. Define the moment conditions (Z_t)
+        # We demean them so E[Z_t] = 0. 
+        # Col 1: Mean moment. Col 2: Variance moment.
+        Z = np.column_stack((x - mu, (x - mu)**2 - var))
+        
+        # Rule of thumb for Newey-West lags if not specified
+        
+        lags = int(np.ceil(4 * (T / 100)**(2/9)))
+            
+        # 3. Compute the Newey-West HAC Covariance Matrix (S matrix)
+        # Start with Lag 0 (White's robust heteroskedasticity covariance)
+        S = (Z.T @ Z) / T
+        
+        # Add Bartlett kernel weighted cross-covariances for serial correlation
+        for j in range(1, lags + 1):
+            weight = 1.0 - (j / (lags + 1.0))
+            # Cross-covariance at lag j
+            Gamma_j = (Z[j:].T @ Z[:-j]) / T
+            S += weight * (Gamma_j + Gamma_j.T)
+            
+        # 4. Apply the Delta Method
+        # The Sharpe Ratio is a function: f(mu, var) = mu * (var)^(-1/2)
+        # We need the gradient of this function with respect to [mu, var]
+        grad = np.array([
+            1.0 / sigma,                 # d(SR)/d(mu)
+            -mu / (2.0 * var * sigma)    # d(SR)/d(var)
+        ])
+        
+        # 5. Calculate final Asymptotic Variance
+        avar = grad.T @ S @ grad
+        return avar
+        
+
+    def fit(self, x):
+        return {'x':x}
+    
 
 
 REGISTRY: dict[str, AvarModel] = {
@@ -262,6 +312,7 @@ REGISTRY: dict[str, AvarModel] = {
         AR1NormalModel(),
         AR1NonNormalModel(),
         GARCH11Model(),
+        HACModel(),
     ]
 }
 

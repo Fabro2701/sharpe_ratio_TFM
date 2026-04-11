@@ -105,20 +105,20 @@ def _sr_hat(x: np.ndarray) -> float:
 
 
 def _avar_estimate(model: AvarModel, sr_h: float, x: np.ndarray,
-                   th_moments: bool, th_moms: dict | None) -> float:
+                   th_moments: bool, th_moms: dict | None, T) -> float:
     """Return the asymptotic variance estimate V̂ for a single model/path."""
     mom = None
     if th_moments and th_moms is not None:
-        V = float(model(sr_h, **th_moms))
+        V = float(model(sr_h, **th_moms, T=T, x=x))
         mom = th_moms
     else:
         params_h = model.fit(x)
-        V = float(model(sr_h, **params_h))
+        V = float(model(sr_h, **params_h, T=T))
         mom = params_h
 
     if not (np.isfinite(V) and V > 0):
         print("no fitted nuisance params")
-        V = float(model(sr_h))   # bare fallback — no fitted nuisance params
+        V = float(model(sr_h, T=T))   # bare fallback — no fitted nuisance params
     return V, mom
 
 
@@ -163,7 +163,7 @@ def _run_one_sample_path(seed, dgp, avar_models, T, null_sr, alpha,
     events = np.zeros(n, dtype=bool)
 
     for j, model in enumerate(avar_models):
-        V, mom = _avar_estimate(model, sr_h, x, th_moments, th_moms)
+        V, mom = _avar_estimate(model, sr_h, x, th_moments, th_moms, T)
         sr_h_adj = model.correct_bias(bias_adj, T, sr_h, **mom)
         event, width = _event_one_sample(sr_h_adj, V, T, null_sr, alpha, study_type)
         widths[j] = width
