@@ -620,7 +620,7 @@ class GARCHProcess(DGP):
         alpha, beta = self.alpha, self.beta
         p = alpha + beta                          # GARCH persistence
  
-        kappa_e = self._innov_exc_kurt()          # innovation excess kurtosis
+        kappa_e = self._innov_exc_kurt() + 3         # innovation  kurtosis
         skew_e  = self._innov_skew()              # innovation skewness
  
         self.th_mean  = self.mu
@@ -630,19 +630,18 @@ class GARCHProcess(DGP):
  
         # Denominator shared by both kurtosis and Var(σ²)/σ̄⁴.
         # The 4th moment of y_t (and hence Var(σ²)) exists iff denom > 0.
-        denom = 1.0 - p**2 - alpha**2 * (kappa_e + 2.0)
+        denom = 1.0 - p**2 - alpha**2 * (kappa_e - 1.0)
  
         if np.isfinite(kappa_e) and denom > 0.0:
             # --- excess kurtosis (exact closed-form for GARCH(1,1)) ---
-            # κ_y = [κ_ε(1-p²+3α²) + 6α²] / denom
             self.th_exc_kurt = (
-                kappa_e * (1.0 - p**2 + 3.0 * alpha**2) + 6.0 * alpha**2
-            ) / denom
+                kappa_e * (1.0 - p**2)
+            ) / denom - 3
  
             # --- skewness: Taylor expansion of E[σ_t^3] up to the 3/8 term ---
             # E[(σ²)^(3/2)] ≈ σ̄³ · (1 + 3/8 · Var(σ²)/σ̄⁴)
             # Var(σ²)/σ̄⁴ = α²(κ_ε+2) / denom
-            var_sig2_norm = alpha**2 * (kappa_e + 2.0) / denom
+            var_sig2_norm = alpha**2 * (kappa_e - 1.0) / denom
             self.th_skew = skew_e * (1.0 + (3.0 / 8.0) * var_sig2_norm)
         else:
             self.th_exc_kurt = np.inf

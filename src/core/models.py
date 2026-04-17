@@ -226,20 +226,21 @@ class AR1NonNormalModel(AvarModel):
         den = (1 + 3/(4*T)*(exc_kurt+2)*(1+rho**2)/(1-rho**2))
 
         return num / den
+
     
 class GARCH11Model(AvarModel):
-    """Process with GARCH(1, 1) innovations."""
+    """Process with GARCH(1, 1)"""
     name        = "GARCH(1, 1)"
     short_name  = "garch11"
     param_names = ("omega", "alpha", "beta", "skew", "exc_kurt")
 
     def _avar(self, sr, omega=0.05, alpha=0.08, beta=0.87, skew=0.0, exc_kurt=0.0, **kw):
-        t1 = skew / (1 - alpha - beta) 
+
+        t1 = skew *(1-beta)/ (1 - alpha - beta) 
         t2 = (exc_kurt + 2) * (1-beta)**2 * (1+alpha+beta) / ((1 - alpha - beta) * (1 - 2*alpha*beta - beta**2) )
         
         return 1 - sr*t1+ sr**2/4 * t2
         
-
     def fit(self, x):
         am = arch_model(x, mean='Constant', vol='GARCH',p=1,q=1, dist='normal', rescale=True)
         res_fit = am.fit(update_freq=0,disp=False)
