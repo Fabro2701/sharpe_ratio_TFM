@@ -28,6 +28,8 @@ CALIBRATION_MOMENTS = {
     "ar1_06_t6": {"mu": 1.5, "sigma": 0.4},
     "ar1_m06_t6": {"mu": 1.5, "sigma": 0.4},
     "garch_normal": {"mu": 1.5, "sigma": 0.4},
+    "garch_t": {"mu": 1.5, "sigma": 0.4},
+    "garch_skewt": {"mu": 1.5, "sigma": 0.4},
 }
 
 SPEC_BUILDERS = []

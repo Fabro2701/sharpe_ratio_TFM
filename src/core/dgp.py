@@ -599,35 +599,20 @@ class GARCHProcess(DGP):
         """Excess kurtosis κ_ε of the standardised innovation."""
         if self.dist == "normal":
             return 0.0
+        elif self.dist == "t":  
+            df = self.dist_params[0]
+            return 6.0 / (df - 4.0) if df > 4.0 else np.inf
         df = self.dist_params[0]
-        return 6.0 / (df - 4.0) if df > 4.0 else np.inf
+        eta = self.dist_params[1]
+        return SkewStudent(seed=42).moment(4, [df, eta]) - 3
  
     def _innov_skew(self) -> float:
         """Skewness of the standardised innovation."""
         if self.dist in ("normal", "t"):
             return 0.0
-        # Hansen (1994) skewed-t — same algebra as SkewTInnov.calculate_theo_moments
-        df, lam = self.dist_params[0], self.dist_params[1]
-        if df <= 3.0:
-            return np.nan
-        from scipy.special import gamma as gf
-        c   = gf((df + 1) / 2) / (np.sqrt(np.pi * (df - 2)) * gf(df / 2))
-        a   = 4.0 * lam * c * (df - 2) / (df - 1)
-        b   = np.sqrt(1.0 + 3.0 * lam**2 - a**2)
-        # E[|T|^3] for T ~ t(df), valid for df > 3
-        # Using E[|T|^k] = df^(k/2) Γ((k+1)/2) Γ((df-k)/2) / (√π Γ(df/2))
-        # with k=3 and Γ(2) = 1:
-        e_abs_t3 = df ** (3 / 2) * gf((df - 3) / 2) / (np.sqrt(np.pi) * gf(df / 2))
-        p_l  = (1.0 + lam) / 2.0
-        e_z3 = (
-            p_l  * (-(1.0 - lam) ** 3) * e_abs_t3
-            + (1.0 - p_l) * (1.0 + lam) ** 3 * e_abs_t3
-        )
-        # raw = (z - a) / b  =>  E[raw^3] via binomial expansion
-        e_z  = a
-        e_z2 = b**2 + a**2   # Var(raw)=1  =>  Var(z)=b^2
-        e_raw3 = (e_z3 - 3.0 * a * e_z2 + 3.0 * a**2 * e_z - a**3) / b**3
-        return float(e_raw3)
+        df = self.dist_params[0]
+        eta = self.dist_params[1]
+        return SkewStudent(seed=42).moment(3, [df, eta])
  
     # ------------------------------------------------------------------
  
@@ -822,5 +807,13 @@ DGP_EXAMPLES: dict[str, callable] = {
     "garch_normal": (
         lambda: GARCHProcess(mu=0.05, omega=0.05, alpha=0.10, beta=0.85,
                              dist="normal").calibrate_params(mu=1.5, sigma=0.4)
+    ),
+    "garch_t": (
+        lambda: GARCHProcess(mu=0.05, omega=0.05, alpha=0.10, beta=0.85,
+                             dist="t", dist_params=[8]).calibrate_params(mu=1.5, sigma=0.4)
+    ),
+    "garch_skewt": (
+        lambda: GARCHProcess(mu=0.05, omega=0.05, alpha=0.10, beta=0.85,
+                             dist="skewt", dist_params=[8, -0.3]).calibrate_params(mu=1.5, sigma=0.4)
     ),
 }
