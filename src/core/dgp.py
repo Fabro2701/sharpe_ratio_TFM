@@ -55,7 +55,11 @@ class DGP(abc.ABC):
                 "rho":self.th_rho,
                 "nu":self.th_nu,
                 "mean":self.th_mean,
-                "sigma":self.th_sigma}
+                "sigma":self.th_sigma,
+                "omega":getattr(self, "th_omega", 0.0),
+                "alpha":getattr(self, "th_alpha", 0.0),
+                "beta":getattr(self, "th_beta", 0.0),
+                }
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._repr_params()})"
@@ -617,6 +621,7 @@ class GARCHProcess(DGP):
     # ------------------------------------------------------------------
  
     def calculate_theo_moments(self):
+        self.th_omega, self.th_alpha, self.th_beta = self.omega, self.alpha, self.beta
         alpha, beta = self.alpha, self.beta
         p = alpha + beta                          # GARCH persistence
  
@@ -654,6 +659,8 @@ class GARCHProcess(DGP):
             f"dist={self.dist!r}{dp}"
         )
  
+import numpy as np
+from scipy import stats
 
 class ARGARCHProcess(DGP):
     """
@@ -722,9 +729,26 @@ class ARGARCHProcess(DGP):
     # ------------------------------------------------------------------
     # Theoretical moments
     # ------------------------------------------------------------------
+    
 
     def calculate_theo_moments(self):
-        a=0#TODO
+        self.th_omega, self.th_alpha, self.th_beta = self.omega, self.alpha, self.beta
+
+        sample = self.simulate(2_000_000, 42)
+        lag = sample[:-1]; y = sample[1:]
+        dm  = lag - lag.mean()
+        den = float(np.dot(dm, dm))
+        rho = 0.0 if den < 1e-12 else float(
+            np.clip(np.dot(dm, y - y.mean()) / den, -0.999, 0.999)
+        )
+
+        self.th_skew = stats.skew(sample)
+        self.th_exc_kurt = stats.kurtosis(sample, fisher=True)
+        self.th_rho = rho
+        self.th_nu = 0
+        self.th_mean = np.mean(sample)
+        self.th_sigma = np.std(sample)
+
 
     def _repr_params(self):
         return (
