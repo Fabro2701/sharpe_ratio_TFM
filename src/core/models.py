@@ -179,7 +179,7 @@ class AR1NormalModel(AvarModel):
     param_names = ("rho",)
 
     def _avar(self, sr, rho=0.2, **kw):
-        rho = np.clip(np.asarray(rho, dtype=float), -1 + 1e-9, 1 - 1e-9)
+        #rho = np.clip(np.asarray(rho, dtype=float), -1 + 1e-9, 1 - 1e-9)
         return (1.0 + rho) / (1.0 - rho) + sr**2 / (2.0 * (1.0 - rho**2)) *(1.0 + rho**2)
 
     def fit(self, x):
@@ -252,6 +252,47 @@ class GARCH11Model(AvarModel):
             "exc_kurt":float(stats.kurtosis(x, fisher=True))
         }
     
+class AR1GARCH11NormalModel(AvarModel):
+    """AR(1)-GARCH(1, 1) process with Normal innovations."""
+    name        = "AR(1) GARCH(1, 1) Normal"
+    short_name  = "ar1_garch11normal"
+    param_names = ("rho", "omega", "alpha", "beta", "skew", "exc_kurt")
+
+    def _avar(self, sr, rho=0.2, omega=0.05, alpha=0.08, beta=0.87, **kw):
+
+        Q_num = 1 - (alpha + beta)**2
+        Q_den = 1 - (alpha + beta)**2 - 2 * (alpha**2)
+        Q = Q_num / Q_den
+
+        term1 = (1 + rho) / (1 - rho)
+
+        left = (rho**2) / (1 - (rho**2) * (alpha + beta))
+        right = ((1 - alpha - beta) / (1 - rho**2)) + (3 * alpha + beta) * Q
+        fact1 = left * right
+
+        fact2 = 0.5 * (((1 - beta) / (1 - (alpha + beta)))**2) * Q
+
+        res = term1 + (sr**2) * (fact1 + fact2)
+
+        return res
+
+    def fit(self, x):
+        am = arch_model(x, mean='Constant', vol='GARCH',p=1,q=1, dist='normal', rescale=True)
+        res_fit = am.fit(update_freq=0,disp=False)
+
+        return {
+            "rho":res_fit.params['y[1]'], 
+            "omega":res_fit.params['omega'], 
+            "alpha":res_fit.params['alpha[1]'], 
+            "beta":res_fit.params['beta[1]'], 
+        }  
+    
+    def _correct_bias(self, T, sr_hat, rho=0.2, skew=0.0, exc_kurt=0.0, **kw):
+        num = sr_hat + 0.5*skew/T * (1 + rho + rho**2) / (1.0 - rho**2)
+        den = (1 + 3/(4*T)*(exc_kurt+2)*(1+rho**2)/(1-rho**2))
+
+        return num / den
+    
 class HACModel(AvarModel):
     """non-parametric Newey-West HAC estimator"""
     name        = "HAC"
@@ -313,6 +354,7 @@ REGISTRY: dict[str, AvarModel] = {
         AR1NormalModel(),
         AR1NonNormalModel(),
         GARCH11Model(),
+        AR1GARCH11NormalModel(),
         HACModel(),
     ]
 }
@@ -349,4 +391,5 @@ MODEL_CLASSES: list[AvarModel] = [
         AR1NormalModel(),
         AR1NonNormalModel(),
         GARCH11Model(),
+        AR1GARCH11NormalModel(),
 ]
