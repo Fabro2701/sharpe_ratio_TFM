@@ -735,16 +735,10 @@ class ARGARCHProcess(DGP):
         self.th_omega, self.th_alpha, self.th_beta = self.omega, self.alpha, self.beta
 
         sample = self.simulate(2_000_000, 42)
-        lag = sample[:-1]; y = sample[1:]
-        dm  = lag - lag.mean()
-        den = float(np.dot(dm, dm))
-        rho = 0.0 if den < 1e-12 else float(
-            np.clip(np.dot(dm, y - y.mean()) / den, -0.999, 0.999)
-        )
 
         self.th_skew = stats.skew(sample)
         self.th_exc_kurt = stats.kurtosis(sample, fisher=True)
-        self.th_rho = rho
+        self.th_rho = self.phi
         self.th_nu = 0
         self.th_mean = np.mean(sample)
         self.th_sigma = np.std(sample)
