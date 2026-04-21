@@ -272,13 +272,13 @@ def main(cli_args=None):
 if __name__ == "__main__":
     test_args = [
         "--study_type", "TWO_SIDED_COVERAGE",
-        "--T",          "500",
+        "--T",          "1000",
         "--n_sim",      "10000",
         "--theta",      "0.5",
         "--calib_mu",   "0.15",
-        "--dgps",       "iid_normal", "iid_t6",
-        "--models",     "iid_normal", "iid_student_t",
-        "--seed",       "42",
-        "--null_sr",     "0.6",
+        "--dgps",       "iid_t6",
+        "--models",     "iid_normal", "iid_student_t", "iid_nonnormal",
+        "--seed",       "43",
+        "--n_jobs",     "8",
     ]
     main(test_args)

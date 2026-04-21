@@ -1,53 +1,71 @@
-import time
+from pathlib import Path
 
-import matplotlib.pyplot as plt
-import numpy as np
-from scipy import stats
+from config import RESULTS_DIR
+from core.sr_study_analysis import run_analysis, run_selected_configs, ExperimentSpec
+from core.sr_sim import StudyType
 
-from core.dgp import ARProcess, IIDProcess, NormalInnov, StudentTInnov, SkewTInnov, GARCHProcess
-from core.synth import TrajectorySpec, SyntheticGenerator, summary
-from core.models import AR1NormalModel, IIDNormalModel, IIDStudentTModel, IIDNonNormalModel, GARCH11Model
-from core.run_coverage import main
-from core.coverage import run_coverage_study, DGPSpec
+df= 80
+eta = -0.3
 
-from core.dgp import IIDProcess, NormalInnov, StudentTInnov, ARProcess, GARCHProcess
-from core.dgp import DGP_EXAMPLES
-from core.synth import TrajectorySpec, SyntheticGenerator
+from core.dgp import DGP_EXAMPLES, GARCHProcess, ARGARCHProcess
 
 
 
-# start_time = time.perf_counter()
-# res = run_coverage_study(
-#         dgp_specs=[
-#             #DGPSpec(GARCHProcess(mu=0.15, omega=0.05, alpha=0.10, beta=0.85,
-#             # dist='normal'), "garch"),
-#             DGPSpec(IIDProcess(StudentTInnov(3)), "iid_3"),
-#             DGPSpec(IIDProcess(StudentTInnov(7)), "iid_7")], 
-#         avar_models=[IIDStudentTModel()],
-#         target_sr=0.5, T=1000, n_sim=10000, alpha=0.05,
-#         th_moments = False,
-#         seed=42, verbose=False,
-#         n_jobs=8
-#     )
+DGP_EXAMPLES["argarch_dgp"]=lambda: ARGARCHProcess(phi=0.3)
+DGP_EXAMPLES["garch_dgp"]=lambda: GARCHProcess(dist='skewt', dist_params=[8.0,-0.3])
 
-# print(res)
-# end_time = time.perf_counter()
-# elapsed_time = end_time - start_time
-# print(elapsed_time)
+# name : (dgp_names, model_short_names)
+scenarios = {
+    "aux": (
+        #["argarch_dgp"],
+        #["garch_dgp"],
+        #["ar1_06_normal", "ar1_m06_normal"],
+        #["ar1_06_normal", "ar1_06_t6", "garch_normal", "garch_t"],
+        ["ar1_06_normal","ar1_m06_normal","ar1_06_t6", "ar1_m06_t6"],
 
+        #["ar1_garch11normal"],
+        ["ar1_garch11symm", "ar1_nonnormal"],
+        #["garch11"],
 
+        
+        #["iid_t6"],
+        #["iid_nonnormal"],
+    ),
+}
 
-# #dgp = GARCHProcess(mu=0.05, omega=0.05, alpha=0.10, beta=0.85,
-# #             dist='t', dist_params=[8.0, 0.9]).calibrate_params(0.15, 0.3)
+parameters = {
+    "n_sim": [1_000, 10_000, 30_000],
+    "T":     [100, 500, 2000],
+    #"T":     [3000, 5000],
+}
 
-# dgp = IIDProcess(SkewTInnov(df=6, eta=0.8)).calibrate_params(0.15, 0.3)
+N_SIM  = 30_000
+N_JOBS = 1
+param_name = "T"
+param_values = parameters[param_name]
 
-# rng = np.random.default_rng(42)
-# res = dgp.simulate(10000, rng)
+experiments = {
+    "aux": ExperimentSpec(
+        scenario   = scenarios["aux"],
+        param_name = param_name,
+        param_values = param_values,
+        study_type = StudyType.TWO_SIDED_COVERAGE,
+        calib_sigma   = 1.0,
+        n_default  = N_SIM,
+        n_jobs = N_JOBS,
+        th_moments = True,
+    ),
+}
+run_selected_configs(
+    experiments,
+    selected_experiments=[
+        "aux",
+    ],
+)
 
-# print(res.mean(), res.std())
-# print(stats.skew(res), stats.kurtosis(res, fisher=True),)
+line_plot_kargs = dict(reverse=False, 
+                       linewidth=1,markers=['D', 's', 'o', 'X', 'v'])
 
-# #plt.hist(res, bins=100)
-# #plt.show()
-# print(dgp.get_theo_moments()) 
+run_analysis(experiments, "aux", alpha=0.05, plot_mask=[0,0,1],
+             line_plot_kargs=line_plot_kargs |
+             dict(log=True, xticks=parameters['T']))

@@ -290,6 +290,51 @@ class AR1GARCH11NormalModel(AvarModel):
     def _correct_bias(self, T, sr_hat, rho=0.2, skew=0.0, exc_kurt=0.0, **kw):
         num = sr_hat + 0.5*skew/T * (1 + rho + rho**2) / (1.0 - rho**2)
         den = (1 + 3/(4*T)*(exc_kurt+2)*(1+rho**2)/(1-rho**2))
+        #pending
+        return num / den
+    
+
+class AR1GARCH11SymmModel(AvarModel):
+    """AR(1)-GARCH(1, 1) process with symmetric innovations."""
+    name        = "AR(1) GARCH(1, 1) symmetric"
+    short_name  = "ar1_garch11symm"
+    param_names = ("rho", "omega", "alpha", "beta", "skew", "exc_kurt")
+
+    def _avar(self, sr, rho=0.2, omega=0.05, alpha=0.08, beta=0.87, exc_kurt=0, **kw):
+
+        D1 = 1 - 2 * alpha * beta - beta**2
+        D3 = 1 - rho**2 * (alpha + beta)
+        N1 = 1 - alpha * beta - beta**2
+
+        # A expandido
+        A = (6 * rho**2 * alpha * N1) / (D3 * D1)
+
+        # Términos principales
+        term1 = (1 + rho) / (1 - rho)
+        term2 = 0.25 * sr**2
+        term3 = 1 / (1 + A)
+        term4 = 1 / (1 - rho**2)
+        kr = exc_kurt + 3
+        term5 = (1 + rho**2) * kr - 5 * rho**2 - 1
+        term6 = 4*rho**2 + (1 - beta)**2 / (1-alpha-beta) * ((1 + alpha + beta) / D1)
+
+        return term1 + term2 * term3 * term4 * term5 * term6
+
+    def fit(self, x):
+        am = arch_model(x, mean='Constant', vol='GARCH',p=1,q=1, dist='normal', rescale=True)
+        res_fit = am.fit(update_freq=0,disp=False)
+
+        return {
+            "rho":res_fit.params['y[1]'], 
+            "omega":res_fit.params['omega'], 
+            "alpha":res_fit.params['alpha[1]'], 
+            "beta":res_fit.params['beta[1]'], 
+        }  
+    
+    def _correct_bias(self, T, sr_hat, rho=0.2, skew=0.0, exc_kurt=0.0, **kw):
+        num = sr_hat + 0.5*skew/T * (1 + rho + rho**2) / (1.0 - rho**2)
+        den = (1 + 3/(4*T)*(exc_kurt+2)*(1+rho**2)/(1-rho**2))
+        #pending
 
         return num / den
     
@@ -355,6 +400,7 @@ REGISTRY: dict[str, AvarModel] = {
         AR1NonNormalModel(),
         GARCH11Model(),
         AR1GARCH11NormalModel(),
+        AR1GARCH11SymmModel(),
         HACModel(),
     ]
 }
