@@ -310,15 +310,17 @@ class AR1GARCH11SymmModel(AvarModel):
         A = (6 * rho**2 * alpha * N1) / (D3 * D1)
 
         # Términos principales
-        term1 = (1 + rho) / (1 - rho)
-        term2 = 0.25 * sr**2
-        term3 = 1 / (1 + A)
-        term4 = 1 / (1 - rho**2)
-        kr = exc_kurt + 3
-        term5 = (1 + rho**2) * kr - 5 * rho**2 - 1
-        term6 = 4*rho**2 + (1 - beta)**2 / (1-alpha-beta) * ((1 + alpha + beta) / D1)
+        phi=rho
+        term1 = (1 + phi) / (1 - phi)
+        k_r = exc_kurt + 3
 
-        return term1 + term2 * term3 * term4 * term5 * term6
+        var_a = 4 * phi**2 * (1-phi**2)**2 / (1-phi**2) * ((1/(1+A)*((1+phi**2)*k_r - 5*phi**2 - 1))*alpha*(N1)/(D1)/(D3) + 1 )
+        var_eta = (1-phi**2)**2 * (1/(1+A)) / (1-phi**2) * ( (1+phi**2)*k_r - 5*phi**2 - 1 ) * (1-(alpha+beta)**2)/(D1) 
+
+        S_22 = 1/(1-phi**2)**2 * (var_a + ((1-beta)/(1-alpha-beta))**2 * var_eta) 
+        term2 = 0.25 * sr**2 * S_22
+
+        return term1 + term2
 
     def fit(self, x):
         am = arch_model(x, mean='Constant', vol='GARCH',p=1,q=1, dist='normal', rescale=True)
