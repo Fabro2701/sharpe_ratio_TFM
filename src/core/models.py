@@ -302,24 +302,26 @@ class AR1GARCH11SymmModel(AvarModel):
 
     def _avar(self, sr, rho=0.2, omega=0.05, alpha=0.08, beta=0.87, exc_kurt=0, **kw):
 
-        D1 = 1 - 2 * alpha * beta - beta**2
-        D3 = 1 - rho**2 * (alpha + beta)
-        N1 = 1 - alpha * beta - beta**2
-
-        # A expandido
-        A = (6 * rho**2 * alpha * N1) / (D3 * D1)
-
-        # Términos principales
-        phi=rho
-        term1 = (1 + phi) / (1 - phi)
         k_r = exc_kurt + 3
+        phi = rho
+        phi2 = phi**2
+        den_com = 1 - 2*alpha*beta - beta**2
+        
+        K = (1 + phi2) * k_r - 5 * phi2 - 1
+        
+        num_A = 1 - alpha*beta - beta**2
+        factor_A = 1 - phi2 * (alpha + beta)
+        A = 6 * phi2 * alpha * (num_A / den_com) * (1 / factor_A)
+        
+        num = ((1 - beta)**2) * (1 + alpha + beta)
+        den = (1 - alpha - beta) * den_com
+        params = num / den
+        
+        term_params = (2/3) * A + params
+        S_vv = (1 / (1 - phi2)) * (4 * phi2 + (K / (1 + A)) * term_params)
 
-        var_a = 4 * phi**2 * (1-phi**2)**2 / (1-phi**2) * ((1/(1+A)*((1+phi**2)*k_r - 5*phi**2 - 1))*alpha*(N1)/(D1)/(D3) + 1 )
-        var_eta = (1-phi**2)**2 * (1/(1+A)) / (1-phi**2) * ( (1+phi**2)*k_r - 5*phi**2 - 1 ) * (1-(alpha+beta)**2)/(D1) 
-
-        S_22 = 1/(1-phi**2)**2 * (var_a + ((1-beta)/(1-alpha-beta))**2 * var_eta) 
-        term2 = 0.25 * sr**2 * S_22
-
+        term2 = 0.25 * sr**2 * S_vv
+        term1 = (1 + phi) / (1 - phi)
         return term1 + term2
 
     def fit(self, x):
