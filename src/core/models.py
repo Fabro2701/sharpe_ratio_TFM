@@ -10,8 +10,6 @@ Each class owns:
   • param_names         — tuple of kwarg names accepted by _avar (no defaults
                           here; defaults live in model_meta.py with the specs)
 
-Parameter specs, display metadata, and the registry wrapper all live in
-model_meta.py.  Import from there for anything beyond raw computation.
 """
 
 from __future__ import annotations
@@ -428,18 +426,3 @@ def get_model(key: str) -> AvarModel:
             f"Unknown model '{key}'.  Available: {list(REGISTRY.keys())}"
         )
     return REGISTRY[key]
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Raw model list — model_meta.py builds the full REGISTRY from this
-# ─────────────────────────────────────────────────────────────────────────────
-
-#: All built-in model instances in display order.
-MODEL_CLASSES: list[AvarModel] = [
-        IIDNormalModel(),
-        IIDStudentTModel(),
-        IIDNonNormalModel(),
-        AR1NormalModel(),
-        AR1NonNormalModel(),
-        GARCH11Model(),
-        AR1GARCH11NormalModel(),
-]
