@@ -2,6 +2,7 @@ import pytest
 
 # Import the REGISTRY directly from your module
 from core.models import REGISTRY
+from utils.moments import garch_kurtosis, ar_garch_kurtosis_from_e, ar_garch_kurtosis_from_u
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Test Data Definitions
@@ -30,12 +31,19 @@ MODEL_RELATIONSHIPS = [
     
     # --- AR(1)-GARCH(1,1) Normal Reductions ---
     ("ar1_garch11normal", "ar1_normal", {"rho": 0.25, "alpha": 0.0, "beta": 0.0}, {"rho": 0.25}),
-    ("ar1_garch11normal", "garch11", {"rho": 0.0, "alpha": 0.1, "beta": 0.8}, {"alpha": 0.1, "beta": 0.8, "skew": 0.0, "exc_kurt": 0.0}),
+    ("ar1_garch11normal", "garch11", 
+     {"rho": 0.0, "alpha": 0.1, "beta": 0.8}, 
+     {"alpha": 0.1, "beta": 0.8, "skew": 0.0, "exc_kurt": garch_kurtosis(3.0, 0.1, 0.8)-3}),
     
     # --- AR(1)-GARCH(1,1) Symmetric Reductions ---
     ("ar1_garch11symm", "ar1_nonnormal", {"rho": 0.3, "alpha": 0.0, "beta": 0.0, "exc_kurt": 1.5}, {"rho": 0.3, "skew": 0.0, "exc_kurt": 1.5}),
     ("ar1_garch11symm", "garch11", {"rho": 0.0, "alpha": 0.1, "beta": 0.8, "exc_kurt": 1.5}, {"alpha": 0.1, "beta": 0.8, "skew": 0.0, "exc_kurt": 1.5}),
+    ("ar1_garch11symm", "ar1_garch11normal", 
+     {"rho": 0.3, "alpha": 0.1, "beta": 0.8, "exc_kurt": ar_garch_kurtosis_from_e(3.0, 0.3, 0.1, 0.8)-3}, 
+     {"rho": 0.3, "alpha": 0.1, "beta": 0.8}),
+
 ]
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # The Parameterized Test
