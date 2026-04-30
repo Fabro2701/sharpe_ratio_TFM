@@ -275,7 +275,7 @@ class GARCH11Model(AvarModel):
 
     def _avar(self, sr, omega=0.05, alpha=0.08, beta=0.87, skew=0.0, exc_kurt=0.0, **kw):
 
-        t1 = skew *(1-beta)/ (1 - alpha - beta) 
+        t1 = skew * (1-beta) / (1 - alpha - beta) 
         t2 = (exc_kurt + 2) * (1-beta)**2 * (1+alpha+beta) / ((1 - alpha - beta) * (1 - 2*alpha*beta - beta**2) )
         
         return 1 - sr*t1+ sr**2/4 * t2
@@ -296,7 +296,7 @@ class GARCH11Model(AvarModel):
         k_minus_1 = kurt - 1.0
 
         S_11 = 1.0
-        S_12 = skew / (1 - alpha - beta)
+        S_12 = skew * (1 - beta) / (1 - alpha - beta)
         num_s22 = ((1 - beta)**2) * (1 + alpha + beta)
         den_s22 = (1 - alpha - beta) * (1 - 2 * alpha * beta - beta**2)
         S_22 = k_minus_1 * (num_s22 / den_s22)
