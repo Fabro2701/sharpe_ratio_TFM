@@ -109,7 +109,18 @@ class IIDNormalModel(AvarModel):
         return {}
     
     def _correct_bias(self, T, sr_hat, **kw):
-        return sr_hat/(1 + 0.75/T)
+        kurt = 0.0 + 3.0 
+        k_minus_1 = kurt - 1.0
+
+        S_11 = 1.0
+        S_12 = 0
+        S_22 = k_minus_1
+
+        term_1 = S_12 / (2 * T)
+        term_2_inv = 1 + (1 / (2 * (T - 1))) * (S_11 - 1) + (3 / (8 * T)) * S_22
+        term_2 = 1 / term_2_inv
+
+        return (sr_hat + term_1) * term_2
         
     
 class _CustomStudentsT(StudentsT):
@@ -166,9 +177,18 @@ class IIDNonNormalModel(AvarModel):
         }
     
     def _correct_bias(self, T, sr_hat, skew=0.0, exc_kurt=0.0, **kw):
-        num = sr_hat + 0.5*skew/T
-        den = 1 + 0.75*0.5/T * (exc_kurt+2)
-        return num / den
+        kurt = exc_kurt + 3.0 
+        k_minus_1 = kurt - 1.0
+
+        S_11 = 1.0
+        S_12 = skew
+        S_22 = k_minus_1
+
+        term_1 = S_12 / (2 * T)
+        term_2_inv = 1 + (1 / (2 * (T - 1))) * (S_11 - 1) + (3 / (8 * T)) * S_22
+        term_2 = 1 / term_2_inv
+
+        return (sr_hat + term_1) * term_2
 
 class AR1NormalModel(AvarModel):
     """AR(1) process with Normal innovations."""
@@ -190,7 +210,19 @@ class AR1NormalModel(AvarModel):
         return {"rho": rho}
     
     def _correct_bias(self, T, sr_hat, rho=0.2, **kw):
-        return sr_hat / (1 + 3/(4*T)*(1+rho**2)/(1-rho**2))
+        kurt = 0.0 + 3.0 
+        k_minus_1 = kurt - 1.0
+
+        phi = rho
+        S_11 = (1 + phi) / (1 - phi)
+        S_12 = 0.0
+        S_22 = 2.0 * ((1 + phi**2) / (1 - phi**2))
+
+        term_1 = S_12 / (2 * T)
+        term_2_inv = 1 + (1 / (2 * (T - 1))) * (S_11 - 1) + (3 / (8 * T)) * S_22
+        term_2 = 1 / term_2_inv
+
+        return (sr_hat + term_1) * term_2
 
 
 
@@ -220,10 +252,19 @@ class AR1NonNormalModel(AvarModel):
         }    
     
     def _correct_bias(self, T, sr_hat, rho=0.2, skew=0.0, exc_kurt=0.0, **kw):
-        num = sr_hat + 0.5*skew/T * (1 + rho + rho**2) / (1.0 - rho**2)
-        den = (1 + 3/(4*T)*(exc_kurt+2)*(1+rho**2)/(1-rho**2))
+        kurt = exc_kurt + 3.0 
+        k_minus_1 = kurt - 1.0
 
-        return num / den
+        phi = rho
+        S_11 = (1 + phi) / (1 - phi)
+        S_12 = skew
+        S_22 = k_minus_1 * ((1 + phi**2) / (1 - phi**2))
+
+        term_1 = S_12 / (2 * T)
+        term_2_inv = 1 + (1 / (2 * (T - 1))) * (S_11 - 1) + (3 / (8 * T)) * S_22
+        term_2 = 1 / term_2_inv
+
+        return (sr_hat + term_1) * term_2
 
     
 class GARCH11Model(AvarModel):
@@ -251,10 +292,20 @@ class GARCH11Model(AvarModel):
         }
     
     def _correct_bias(self, T, sr_hat, alpha=0.08, beta=0.87, skew=0.0, exc_kurt=0.0, **kw):
-        num = sr_hat + (1/(2*T))*skew/(1-alpha-beta)
-        den = (1 + 0.75*(1/(2*T))*(exc_kurt+2)*(((1-beta)**2)*(1+alpha+beta))/((1 - alpha - beta)*(1 - 2*alpha*beta - beta**2)))
+        kurt = exc_kurt + 3.0 
+        k_minus_1 = kurt - 1.0
 
-        return num / den
+        S_11 = 1.0
+        S_12 = skew / (1 - alpha - beta)
+        num_s22 = ((1 - beta)**2) * (1 + alpha + beta)
+        den_s22 = (1 - alpha - beta) * (1 - 2 * alpha * beta - beta**2)
+        S_22 = k_minus_1 * (num_s22 / den_s22)
+
+        term_1 = S_12 / (2 * T)
+        term_2_inv = 1 + (1 / (2 * (T - 1))) * (S_11 - 1) + (3 / (8 * T)) * S_22
+        term_2 = 1 / term_2_inv
+
+        return (sr_hat + term_1) * term_2
     
 class AR1GARCH11NormalModel(AvarModel):
     """AR(1)-GARCH(1, 1) process with Normal innovations."""
