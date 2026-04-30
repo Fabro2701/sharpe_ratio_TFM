@@ -726,11 +726,6 @@ class ARGARCHProcess(DGP):
         self.calculate_theo_moments()
         return self
 
-    # ------------------------------------------------------------------
-    # Theoretical moments
-    # ------------------------------------------------------------------
-    
-
     def calculate_theo_moments(self):
         self.th_omega, self.th_alpha, self.th_beta = self.omega, self.alpha, self.beta
 
@@ -742,7 +737,6 @@ class ARGARCHProcess(DGP):
         self.th_nu = 0
         self.th_mean = np.mean(sample)
         self.th_sigma = np.std(sample)
-
 
     def _repr_params(self):
         return (

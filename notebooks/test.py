@@ -12,19 +12,19 @@ from core.dgp import DGP_EXAMPLES, GARCHProcess, ARGARCHProcess
 
 
 DGP_EXAMPLES["argarch_dgp"]=lambda: ARGARCHProcess(phi=0.3)
-DGP_EXAMPLES["garch_dgp"]=lambda: GARCHProcess(dist='skewt', dist_params=[8.0,-0.3])
-
+DGP_EXAMPLES["garch_dgp"]=lambda: GARCHProcess(dist='skewt', dist_params=[8.0,-0.0])
+#try wo asym => ["ar1_garch11symm", "garch11"] should match
 # name : (dgp_names, model_short_names)
 scenarios = {
     "aux": (
         #["argarch_dgp"],
-        #["garch_dgp"],
+        ["garch_dgp"],
         #["ar1_06_normal", "ar1_m06_normal"],
         #["ar1_06_normal", "ar1_06_t6", "garch_normal", "garch_t"],
-        ["ar1_06_normal","ar1_m06_normal","ar1_06_t6", "ar1_m06_t6"],
+        #["ar1_06_normal","ar1_m06_normal","ar1_06_t6", "ar1_m06_t6"],
 
         #["ar1_garch11normal"],
-        ["ar1_garch11symm", "ar1_nonnormal"],
+        ["ar1_garch11symm", "garch11"],
         #["garch11"],
 
         
@@ -40,7 +40,7 @@ parameters = {
 }
 
 N_SIM  = 30_000
-N_JOBS = 1
+N_JOBS = 8
 param_name = "T"
 param_values = parameters[param_name]
 

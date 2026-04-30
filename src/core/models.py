@@ -250,6 +250,12 @@ class GARCH11Model(AvarModel):
             "exc_kurt":float(stats.kurtosis(x, fisher=True))
         }
     
+    def _correct_bias(self, T, sr_hat, alpha=0.08, beta=0.87, skew=0.0, exc_kurt=0.0, **kw):
+        num = sr_hat + (1/(2*T))*skew/(1-alpha-beta)
+        den = (1 + 0.75*(1/(2*T))*(exc_kurt+2)*(((1-beta)**2)*(1+alpha+beta))/((1 - alpha - beta)*(1 - 2*alpha*beta - beta**2)))
+
+        return num / den
+    
 class AR1GARCH11NormalModel(AvarModel):
     """AR(1)-GARCH(1, 1) process with Normal innovations."""
     name        = "AR(1) GARCH(1, 1) Normal"
