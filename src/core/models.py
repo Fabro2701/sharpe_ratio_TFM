@@ -20,6 +20,7 @@ from arch.univariate.distribution import StudentsT
 import numpy as np
 from scipy import stats
 from arch import arch_model
+import statsmodels.api as sm
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -403,6 +404,37 @@ class HACModel(AvarModel):
     short_name  = "hac"
     param_names = ('x')
 
+    def andrews_bartlett_lags(Z):
+        """
+        Calcula el número de rezagos óptimo para el Kernel de Bartlett 
+        utilizando el método plug-in AR(1) de Andrews (1991).
+        """
+        T, k = Z.shape
+        num_sum = 0.0
+        den_sum = 0.0
+        
+        for j in range(k):
+            z_col = Z[:, j]
+            
+            model = sm.OLS(z_col[1:], z_col[:-1])
+            results = model.fit()
+            rho = results.params[0]
+            rho = np.clip(rho, -0.99, 0.99) 
+            sigma_sq = np.var(results.resid)
+            
+            num = (4 * (rho**2) * (sigma_sq**2)) / (((1 - rho)**6) * ((1 + rho)**2))
+            den = (sigma_sq**2) / ((1 - rho)**4)
+            
+            num_sum += num
+            den_sum += den
+            
+        alpha_1 = num_sum / den_sum
+        
+        S_T = 1.1447 * (alpha_1 * T)**(1/3)
+        
+        return int(np.ceil(S_T))
+
+
     def _avar(self, sr, x, **kw):
         T = len(x)
         
@@ -417,8 +449,9 @@ class HACModel(AvarModel):
         Z = np.column_stack((x - mu, (x - mu)**2 - var))
         
         # Rule of thumb for Newey-West lags if not specified
-        
-        lags = int(np.ceil(4 * (T / 100)**(2/9)))
+        #lags = int(np.ceil(4 * (T / 100)**(2/9)))
+        # Andrews
+        lags = HACModel.andrews_bartlett_lags(Z)
             
         # 3. Compute the Newey-West HAC Covariance Matrix (S matrix)
         # Start with Lag 0 (White's robust heteroskedasticity covariance)
