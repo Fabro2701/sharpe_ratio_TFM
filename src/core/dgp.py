@@ -790,45 +790,45 @@ class WithOutliers(DGP):
 
 DGP_EXAMPLES: dict[str, callable] = {
     "iid_normal": (
-        lambda: IIDProcess(NormalInnov()).calibrate_params(mu=0.5, sigma=2.0)
+        lambda **kwargs: IIDProcess(NormalInnov()).calibrate_params(mu=0.5, sigma=2.0)
     ),
     "iid_t3": (
-        lambda: IIDProcess(StudentTInnov(df=3)).calibrate_params(mu=1.5, sigma=1.2)
+        lambda **kwargs: IIDProcess(StudentTInnov(df=3)).calibrate_params(mu=1.5, sigma=1.2)
     ),
     "iid_t6": (
-        lambda: IIDProcess(StudentTInnov(df=6)).calibrate_params(mu=1.5, sigma=1.2)
+        lambda **kwargs: IIDProcess(StudentTInnov(df=6)).calibrate_params(mu=1.5, sigma=1.2)
     ),
     "iid_skewt60_m05": (
-        lambda: IIDProcess(SkewTInnov(df=60, eta=-0.5)).calibrate_params(mu=1.5, sigma=1.2)
+        lambda **kwargs: IIDProcess(SkewTInnov(df=60, eta=-0.5)).calibrate_params(mu=1.5, sigma=1.2)
     ),
     "iid_skewt6_m05": (
-        lambda: IIDProcess(SkewTInnov(df=6, eta=-0.5)).calibrate_params(mu=1.5, sigma=1.2)
+        lambda **kwargs: IIDProcess(SkewTInnov(df=6, eta=-0.5)).calibrate_params(mu=1.5, sigma=1.2)
     ),
     "iid_apd": (
-        lambda: IIDProcess(APDInnov(alpha=0.7, lam=1.35)).calibrate_params(mu=1.5, sigma=1.2)
+        lambda **kwargs: IIDProcess(APDInnov(alpha=0.7, lam=1.35)).calibrate_params(mu=1.5, sigma=1.2)
     ),
     "ar1_06_normal": (
-        lambda: ARProcess(phi=0.6, innov=NormalInnov()).calibrate_params(mu=1.5, sigma=0.4)
+        lambda **kwargs: ARProcess(phi=0.6, innov=NormalInnov()).calibrate_params(mu=1.5, sigma=0.4)
     ),
     "ar1_m06_normal": (
-        lambda: ARProcess(phi=-0.6, innov=NormalInnov()).calibrate_params(mu=1.5, sigma=0.4)
+        lambda **kwargs: ARProcess(phi=-0.6, innov=NormalInnov()).calibrate_params(mu=1.5, sigma=0.4)
     ),
     "ar1_06_t6": (
-        lambda: ARProcess(phi=0.6, innov=StudentTInnov(df=6)).calibrate_params(mu=1.5, sigma=0.4)
+        lambda **kwargs: ARProcess(phi=0.6, innov=StudentTInnov(df=6)).calibrate_params(mu=1.5, sigma=0.4)
     ),
     "ar1_m06_t6": (
-        lambda: ARProcess(phi=-0.6, innov=StudentTInnov(df=6)).calibrate_params(mu=1.5, sigma=0.4)
+        lambda **kwargs: ARProcess(phi=-0.6, innov=StudentTInnov(df=6)).calibrate_params(mu=1.5, sigma=0.4)
     ),
     "garch_normal": (
-        lambda: GARCHProcess(mu=0.05, omega=0.05, alpha=0.10, beta=0.85,
+        lambda **kwargs: GARCHProcess(mu=0.05, omega=0.05, alpha=0.10, beta=0.85,
                              dist="normal").calibrate_params(mu=1.5, sigma=0.4)
     ),
     "garch_t": (
-        lambda: GARCHProcess(mu=0.05, omega=0.05, alpha=0.10, beta=0.85,
+        lambda **kwargs: GARCHProcess(mu=0.05, omega=0.05, alpha=0.10, beta=0.85,
                              dist="t", dist_params=[8]).calibrate_params(mu=1.5, sigma=0.4)
     ),
     "garch_skewt": (
-        lambda: GARCHProcess(mu=0.05, omega=0.05, alpha=0.10, beta=0.85,
+        lambda **kwargs: GARCHProcess(mu=0.05, omega=0.05, alpha=0.10, beta=0.85,
                              dist="skewt", dist_params=[8, -0.3]).calibrate_params(mu=1.5, sigma=0.4)
     ),
 }
