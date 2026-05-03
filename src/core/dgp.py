@@ -27,6 +27,8 @@ from arch.univariate.distribution import (
     SkewStudent,
 )
 
+from utils.moments import ar_garch_kurtosis_from_e
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Base
@@ -729,14 +731,16 @@ class ARGARCHProcess(DGP):
     def calculate_theo_moments(self):
         self.th_omega, self.th_alpha, self.th_beta = self.omega, self.alpha, self.beta
 
-        sample = self.simulate(2_000_000, 42)
+        #sample = self.simulate(2_000_000, 42)
 
-        self.th_skew = stats.skew(sample)
-        self.th_exc_kurt = stats.kurtosis(sample, fisher=True)
+        #self.th_skew = stats.skew(sample)
+        self.th_skew = 0 #normal innov
+        #self.th_exc_kurt = stats.kurtosis(sample, fisher=True)
+        self.th_exc_kurt = ar_garch_kurtosis_from_e(3.0, self.phi, self.alpha, self.beta) - 3.0
         self.th_rho = self.phi
         self.th_nu = 0
-        self.th_mean = np.mean(sample)
-        self.th_sigma = np.std(sample)
+        self.th_mean = self.mu
+        self.th_sigma =  np.sqrt((self.omega / (1.0 - self.alpha - self.beta)) / (1.0 - self.phi ** 2))
 
     def _repr_params(self):
         return (
