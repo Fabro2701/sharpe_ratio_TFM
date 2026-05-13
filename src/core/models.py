@@ -16,11 +16,14 @@ from __future__ import annotations
 
 import abc
 
-from arch.univariate.distribution import StudentsT
 import numpy as np
 from scipy import stats
-from arch import arch_model
 import statsmodels.api as sm
+from arch import arch_model
+from arch.univariate.distribution import StudentsT
+
+from utils.moments import ar_garch_kurtosis_from_e
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -333,14 +336,17 @@ class AR1GARCH11NormalModel(AvarModel):
         return res
 
     def fit(self, x):
-        am = arch_model(x, mean='Constant', vol='GARCH',p=1,q=1, dist='normal', rescale=True)
-        res_fit = am.fit(update_freq=0,disp=False)
+        am = arch_model(x, mean='AR', lags=1, vol='GARCH',p=1,q=1, dist='normal', rescale=True)
+        res = am.fit(disp="off")
+        kurt = ar_garch_kurtosis_from_e(3,res.params["y[1]"],res.params["alpha[1]"],res.params["beta[1]"])
 
         return {
-            "rho":res_fit.params['y[1]'], 
-            "omega":res_fit.params['omega'], 
-            "alpha":res_fit.params['alpha[1]'], 
-            "beta":res_fit.params['beta[1]'], 
+            "rho":res.params['y[1]'], 
+            "omega":res.params['omega'], 
+            "alpha":res.params['alpha[1]'], 
+            "beta":res.params['beta[1]'],
+            "skew":0,
+            "exc_kurt":kurt-3
         }  
     
     def _correct_bias(self, T, sr_hat, rho=0.2, skew=0.0, exc_kurt=0.0, **kw):
@@ -381,14 +387,17 @@ class AR1GARCH11SymmModel(AvarModel):
         return term1 + term2
 
     def fit(self, x):
-        am = arch_model(x, mean='Constant', vol='GARCH',p=1,q=1, dist='normal', rescale=True)
-        res_fit = am.fit(update_freq=0,disp=False)
+        am = arch_model(x, mean='AR', lags=1, vol='GARCH',p=1,q=1, dist='t', rescale=True)
+        res = am.fit(disp="off")
+        kurt = ar_garch_kurtosis_from_e(6/(res.params["nu"]-4)+3,res.params["y[1]"],res.params["alpha[1]"],res.params["beta[1]"])
 
         return {
-            "rho":res_fit.params['y[1]'], 
-            "omega":res_fit.params['omega'], 
-            "alpha":res_fit.params['alpha[1]'], 
-            "beta":res_fit.params['beta[1]'], 
+            "rho":res.params['y[1]'], 
+            "omega":res.params['omega'], 
+            "alpha":res.params['alpha[1]'], 
+            "beta":res.params['beta[1]'],
+            "skew":0,
+            "exc_kurt":kurt-3
         }  
     
     def _correct_bias(self, T, sr_hat, rho=0.2, skew=0.0, exc_kurt=0.0, **kw):
@@ -397,6 +406,76 @@ class AR1GARCH11SymmModel(AvarModel):
         #pending
 
         return num / den
+    
+
+class AR1GARCH11SymmModel(AvarModel):
+    """AR(1)-GARCH(1, 1) process with general innovations."""
+    name        = "AR(1) GARCH(1, 1)"
+    short_name  = "ar1_garch11"
+    param_names = ("rho", "omega", "alpha", "beta", "skew", "exc_kurt", "skew")
+
+    def _avar(self, sr, rho=0.2, omega=0.05, alpha=0.08, beta=0.87, exc_kurt=0, skew=0, **kw):
+        k_r = exc_kurt + 3.0
+
+        # ---- shorthand ----
+        phi=rho
+        p    = alpha + beta
+        phi2   = phi * phi
+        om_p2  = 1.0 - phi2                          # 1 - phi^2
+        om_r   = 1.0 - p                           # 1 - alpha - beta
+        den_z  = 1.0 - 2.0*alpha*beta - beta*beta    
+        g      = 1.0 + 2.0*phi*alpha - phi*beta  
+
+        # =====================  S_11 / sigma^2  =====================
+        S11n = (1.0 + phi) / (1.0 - phi)
+
+        # =====================  S_12 / sigma^3  =====================
+        bracket12 = 2.0*phi*alpha + (1.0 - beta) * (1.0 - phi*p) / om_r
+        S12n = skew * (1.0 + phi + phi2) / (om_p2 * g) * bracket12
+
+        # =====================  S_22 / sigma^4  =====================
+        # M_1 / sigma^4 = m1 * skew^2   (Taylor expansion of sigma_t^3 around sigma_u^3)
+        m1 = (3.0 * alpha * (1.0 - phi) * (1.0 + phi + phi2)**2 * (1.0 - phi*p)) \
+            / (2.0 * (1.0 + phi) * g**2)
+        M1 = m1 * skew**2
+
+        P = alpha * (1.0 - alpha*beta - beta*beta) / den_z
+        Q = 1.0 - phi2 * p
+
+        K = (Q * (1.0 - phi2) * ((1.0 + phi2)*k_r -1-5*phi2)-4*phi*M1*(1+phi2*(2*alpha-beta))) / (Q+6*phi2*P)
+
+        H1 = (2*phi*alpha*M1 + K*P)/Q + 1-phi2
+
+        A = 2*phi/ (1-phi2)
+        B = (1-beta)/((1-phi2)*(1-p))
+
+        R= (1-p**2)/(1-2*alpha*beta-beta**2)
+
+        S22n = A**2*H1 + B**2*K*R + 2*A*B*M1
+
+        return S11n - sr * S12n + 0.25 * sr * sr * S22n
+
+    def fit(self, x):
+        am = arch_model(x, mean='AR', lags=1, vol='GARCH',p=1,q=1, dist='t', rescale=True)
+        res = am.fit(disp="off")
+        kurt = ar_garch_kurtosis_from_e(6/(res.params["nu"]-4)+3,res.params["y[1]"],res.params["alpha[1]"],res.params["beta[1]"])
+
+        return {
+            "rho":res.params['y[1]'], 
+            "omega":res.params['omega'], 
+            "alpha":res.params['alpha[1]'], 
+            "beta":res.params['beta[1]'],
+            "skew":0,
+            "exc_kurt":kurt-3
+        }  
+    
+    def _correct_bias(self, T, sr_hat, rho=0.2, skew=0.0, exc_kurt=0.0, **kw):
+        num = sr_hat + 0.5*skew/T * (1 + rho + rho**2) / (1.0 - rho**2)
+        den = (1 + 3/(4*T)*(exc_kurt+2)*(1+rho**2)/(1-rho**2))
+        #pending
+
+        return num / den
+    
     
 class HACModel(AvarModel):
     """non-parametric Newey-West HAC estimator"""
