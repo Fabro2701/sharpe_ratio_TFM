@@ -98,19 +98,23 @@ class StandardConstraints:
     @staticmethod
     def positive(name: str, tol=1e-9) -> Constraint:
         return Constraint(f"{name} > 0", lambda p: p[name] - tol, f"{name} > 0")
+    
+    @staticmethod
+    def lower_bound(name: str, bound=0.0, tol=1e-9) -> Constraint:
+        return Constraint(f"{name} > {bound}", lambda p: p[name] - bound - tol, f"{name} > {bound}")
 
 
 class ParameterSniffer:
     """Auto-build Parameter specs from a function signature."""
 
     _KNOWN: dict[str, dict[str, Any]] = {
-        "sr":       dict(bounds=(0.0, 2.0),   fallback_default=0.5),
+        "sr":       dict(bounds=(0.1, 2.0),   fallback_default=0.5),
         "omega":    dict(bounds=(1e-6, 1.0),   fallback_default=0.05, log_scale=True),
         "alpha":    dict(bounds=(1e-4, 0.5),   fallback_default=0.08),
         "beta":     dict(bounds=(1e-4, 0.98),  fallback_default=0.87),
         "rho":      dict(bounds=(-0.9, 0.9),   fallback_default=0.2),
         "phi":      dict(bounds=(-0.9, 0.9),   fallback_default=0.2),
-        "skew":     dict(bounds=(-3.0, 3.0),   fallback_default=0.0),
+        "skew":     dict(bounds=(-2.5, 2.5),   fallback_default=0.0),
         "exc_kurt": dict(bounds=(0.0, 20.0),   fallback_default=3.0),
         "kurt":     dict(bounds=(3.0, 23.0),   fallback_default=6.0),
     }
@@ -202,7 +206,7 @@ class OATAnalysis:
             if not self.model.is_feasible(pt):
                 continue
             v = self.model.evaluate(**pt)
-            if np.isfinite(v):
+            if np.isfinite(v) and v>0:
                 rows.append({name: float(x), "avar": v})
         return pd.DataFrame(rows)
 
@@ -255,7 +259,7 @@ class MonteCarloAnalysis:
                 if not self.model.is_feasible(pt):
                     continue
                 v = self.model.evaluate(**pt)
-                if np.isfinite(v):
+                if np.isfinite(v) and v>0:
                     rows.append({**pt, "avar": v})
                     break
         if len(rows) < n:
