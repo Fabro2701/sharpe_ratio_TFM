@@ -13,6 +13,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from pandas.api.types import is_numeric_dtype
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -473,8 +474,12 @@ def plot_results_convergence(
         plot_hue   = hue_col
         plot_style = hue_col          # same col → seaborn merges into one legend
 
+    style_levels = sorted(df[plot_style].dropna().unique(), key=str)
     hue_levels   = sorted(df[plot_hue].unique(),   key=str)
-    style_levels = sorted(df[plot_style].unique(), key=str)
+    if is_numeric_dtype(df[plot_hue]):
+        hue_levels = sorted(df[plot_hue].dropna().unique())
+    else:
+        hue_levels = sorted(df[plot_hue].dropna().unique(), key=str)
 
     # ── build marker / dash / palette maps ───────────────────────────────────
     marker_map  = _zip_cycled(style_levels, markers or [], "o")
