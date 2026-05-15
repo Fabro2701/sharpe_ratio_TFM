@@ -22,7 +22,7 @@ import statsmodels.api as sm
 from arch import arch_model
 from arch.univariate.distribution import StudentsT
 
-from utils.moments import ar_garch_kurtosis_from_e
+from utils.moments import ar_garch_kurtosis_from_e, ar_garch_moments
 
 
 
@@ -408,7 +408,8 @@ class AR1GARCH11SymmModel(AvarModel):
         return num / den
     
 
-class AR1GARCH11SymmModel(AvarModel):
+from arch.univariate.distribution import SkewStudent
+class AR1GARCH11Model(AvarModel):
     """AR(1)-GARCH(1, 1) process with general innovations."""
     name        = "AR(1) GARCH(1, 1)"
     short_name  = "ar1_garch11"
@@ -455,17 +456,20 @@ class AR1GARCH11SymmModel(AvarModel):
 
         return S11n - sr * S12n + 0.25 * sr * sr * S22n
 
+
     def fit(self, x):
-        am = arch_model(x, mean='AR', lags=1, vol='GARCH',p=1,q=1, dist='t', rescale=True)
+        am = arch_model(x, mean='AR', lags=1, vol='GARCH',p=1,q=1, dist='skewt', rescale=True)
         res = am.fit(disp="off")
-        kurt = ar_garch_kurtosis_from_e(6/(res.params["nu"]-4)+3,res.params["y[1]"],res.params["alpha[1]"],res.params["beta[1]"])
+        ep_skew = SkewStudent(seed=42).moment(3, [res.params['eta'], res.params['lambda']])
+        ep_k = SkewStudent(seed=42).moment(4, [res.params['eta'], res.params['lambda']])
+        skew, kurt = ar_garch_moments(ep_skew, ep_k, res.params["y[1]"], res.params["alpha[1]"], res.params['beta[1]'])
 
         return {
             "rho":res.params['y[1]'], 
             "omega":res.params['omega'], 
             "alpha":res.params['alpha[1]'], 
             "beta":res.params['beta[1]'],
-            "skew":0,
+            "skew":skew,
             "exc_kurt":kurt-3
         }  
     
@@ -572,6 +576,7 @@ REGISTRY: dict[str, AvarModel] = {
         GARCH11Model(),
         AR1GARCH11NormalModel(),
         AR1GARCH11SymmModel(),
+        AR1GARCH11Model(),
         HACModel(),
     ]
 }
