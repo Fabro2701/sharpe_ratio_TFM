@@ -473,12 +473,51 @@ class AR1GARCH11Model(AvarModel):
             "exc_kurt":kurt-3
         }  
     
-    def _correct_bias(self, T, sr_hat, rho=0.2, skew=0.0, exc_kurt=0.0, **kw):
-        num = sr_hat + 0.5*skew/T * (1 + rho + rho**2) / (1.0 - rho**2)
-        den = (1 + 3/(4*T)*(exc_kurt+2)*(1+rho**2)/(1-rho**2))
-        #pending
+    def _correct_bias(self, T, sr_hat, rho=0.2, alpha=0.08, beta=0.87, skew=0.0, exc_kurt=0.0, **kw):
+        k_r = exc_kurt + 3.0
 
-        return num / den
+        # ---- shorthand ----
+        phi=rho
+        p    = alpha + beta
+        phi2   = phi * phi
+        om_p2  = 1.0 - phi2                          # 1 - phi^2
+        om_r   = 1.0 - p                           # 1 - alpha - beta
+        den_z  = 1.0 - 2.0*alpha*beta - beta*beta    
+        g      = 1.0 + 2.0*phi*alpha - phi*beta  
+
+        # =====================  S_11 / sigma^2  =====================
+        S11n = (1.0 + phi) / (1.0 - phi)
+
+        # =====================  S_12 / sigma^3  =====================
+        bracket12 = 2.0*phi*alpha + (1.0 - beta) * (1.0 - phi*p) / om_r
+        S12n = skew * (1.0 + phi + phi2) / (om_p2 * g) * bracket12
+
+        # =====================  S_22 / sigma^4  =====================
+        # M_1 / sigma^4 = m1 * skew^2   (Taylor expansion of sigma_t^3 around sigma_u^3)
+        m1 = (3.0 * alpha * (1.0 - phi) * (1.0 + phi + phi2)**2 * (1.0 - phi*p)) \
+            / (2.0 * (1.0 + phi) * g**2)
+        M1 = m1 * skew**2
+
+        P = alpha * (1.0 - alpha*beta - beta*beta) / den_z
+        Q = 1.0 - phi2 * p
+
+        K = (Q * (1.0 - phi2) * ((1.0 + phi2)*k_r -1-5*phi2)-4*phi*M1*(1+phi2*(2*alpha-beta))) / (Q+6*phi2*P)
+
+        H1 = (2*phi*alpha*M1 + K*P)/Q + 1-phi2
+
+        A = 2*phi/ (1-phi2)
+        B = (1-beta)/((1-phi2)*(1-p))
+
+        R= (1-p**2)/(1-2*alpha*beta-beta**2)
+
+        S22n = A**2*H1 + B**2*K*R + 2*A*B*M1
+
+        term_1 = S12n / (2 * T)
+        term_2_inv = 1 + (1 / (2 * (T - 1))) * (S11n - 1) + (3 / (8 * T)) * S22n
+        term_2 = 1 / term_2_inv
+
+        return (sr_hat + term_1) * term_2
+
     
     
 class HACModel(AvarModel):

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from joblib import Parallel, delayed
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -40,25 +41,34 @@ def plot_sharpe_bias(means, population_sr, model_names=None, title=None):
     fig.tight_layout()
     return fig
 
-def run_bias_comp(sr, N, Ts, dgp, models, th_moments=False, title=None, savefig=None):
-    records = []
-    rng  = np.random.default_rng(42)
+def _sim_fn(seed, Ts, dgp, models, th_moments):
+    """Run one Monte Carlo replication across all horizons. Returns a list of records."""
+    rng = np.random.default_rng(seed)
+    out = []
+    for T in Ts:
+        sample = dgp.simulate(T, rng)
+        sr_h   = sample.mean() / sample.std(ddof=1)
+        for model in models:
+            name = type(model).__name__
+            params_h = dgp.get_theo_moments() if th_moments else model.fit(sample)
+            sr_adj   = model.correct_bias(True, T, sr_h, **params_h)
+            out.append({"T": T, "model": name, "estimate": sr_h, "corrected": sr_adj})
+    return out
 
-    for _ in range(N):
-        for T in Ts:
-            sample = dgp.simulate(T, rng)
-            sr_h   = sample.mean() / sample.std(ddof=1)
-            for model in models:
-                name     = type(model).__name__
-                if th_moments:
-                    params_h = dgp.get_theo_moments()
-                else:
-                    params_h = model.fit(sample)
-                sr_adj   = model.correct_bias(True, T, sr_h, **params_h)
-                records.append({"T": T, "model": name, "estimate": sr_h, "corrected": sr_adj})
 
+def run_bias_comp(sr, N, Ts, dgp, models, th_moments=False,
+                  title=None, savefig=None, n_jobs=-1):
+    # Independent, reproducible RNG stream per replication
+    child_seeds = np.random.SeedSequence(42).spawn(N)
+
+    results = Parallel(n_jobs=n_jobs, backend="loky")(
+        delayed(_sim_fn)(seed, Ts, dgp, models, th_moments) for seed in child_seeds
+    )
+
+    records = [rec for sub in results for rec in sub]   # flatten
     df = pd.DataFrame(records)
     means = df.groupby(["model", "T"])[["estimate", "corrected"]].mean()
+
     fig = plot_sharpe_bias(means, sr, title=title)
     if savefig:
         path = Path(savefig)
