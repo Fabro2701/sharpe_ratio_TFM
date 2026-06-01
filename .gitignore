@@ -21,3 +21,5 @@ dist/
 Thumbs.db
 .vscode/
 .idea/
+notebooks/test.ipynb
+notebooks/test.py
