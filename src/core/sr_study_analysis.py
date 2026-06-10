@@ -524,8 +524,8 @@ def plot_results_convergence(
                             upper_bounds.append(u)
                     
                     # Plot as curves over the x-axis (param_values)
-                    ax.plot(param_values, lower_bounds, color="gray", linestyle=":", linewidth=1.5, zorder=0)
-                    ax.plot(param_values, upper_bounds, color="gray", linestyle=":", linewidth=1.5, zorder=0)
+                    ax.plot(param_values, lower_bounds, color="gray", linestyle=":", linewidth=2.5, zorder=0)
+                    ax.plot(param_values, upper_bounds, color="gray", linestyle=":", linewidth=2.5, zorder=0)
                     
                 else:
                     # N is fixed (n_default), so the interval bounds are flat horizontal lines
@@ -534,8 +534,8 @@ def plot_results_convergence(
                         l, u = 1 - u, 1 - l
                     
                     # Plot as horizontal lines
-                    ax.axhline(l, color="gray", linestyle=":", linewidth=1.5, zorder=0)
-                    ax.axhline(u, color="gray", linestyle=":", linewidth=1.5, zorder=0)
+                    ax.axhline(l, color="gray", linestyle=":", linewidth=2.5, zorder=0)
+                    ax.axhline(u, color="gray", linestyle=":", linewidth=2.5, zorder=0)
             
         if log:
             ax.set_xscale("log")

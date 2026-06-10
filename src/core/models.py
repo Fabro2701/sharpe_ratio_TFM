@@ -457,20 +457,22 @@ class AR1GARCH11Model(AvarModel):
         return S11n - sr * S12n + 0.25 * sr * sr * S22n
 
 
-    def fit(self, x):
+    def fit(self, x, ret_res=False):
         am = arch_model(x, mean='AR', lags=1, vol='GARCH',p=1,q=1, dist='skewt', rescale=True)
         res = am.fit(disp="off")
         ep_skew = SkewStudent(seed=42).moment(3, [res.params['eta'], res.params['lambda']])
         ep_k = SkewStudent(seed=42).moment(4, [res.params['eta'], res.params['lambda']])
         skew, kurt = ar_garch_moments(ep_skew, ep_k, res.params["y[1]"], res.params["alpha[1]"], res.params['beta[1]'])
 
+        fit_res = res if ret_res else None
         return {
             "rho":res.params['y[1]'], 
             "omega":res.params['omega'], 
             "alpha":res.params['alpha[1]'], 
             "beta":res.params['beta[1]'],
             "skew":skew,
-            "exc_kurt":kurt-3
+            "exc_kurt":kurt-3,
+            "fit_res": fit_res
         }  
     
     def _correct_bias(self, T, sr_hat, rho=0.2, alpha=0.08, beta=0.87, skew=0.0, exc_kurt=0.0, **kw):
